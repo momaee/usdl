@@ -17,7 +17,7 @@ func main() {
 }
 
 func hack1() error {
-	const url = "http://localhost:3000/connect"
+	const url = "ws://localhost:3000/connect"
 	req := make(http.Header)
 
 	socket, _, err := websocket.DefaultDialer.Dial(url, req)

@@ -11,6 +11,9 @@ chat-run:
 chat-test:
 	curl -i -X GET http://localhost:3000/test
 
+chat-hack:
+	go run chat/api/tooling/client/main.go
+
 # ==============================================================================
 # Modules support
 
