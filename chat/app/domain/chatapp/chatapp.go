@@ -25,10 +25,10 @@ func newApp(log *logger.Logger) *app {
 }
 
 func (a *app) connect(ctx context.Context, r *http.Request) web.Encoder {
-	// Web socket implemented here
-	// Just perform basic echo
-	// Make sure we are handling connection drops/issues (context)
-	// How we will map a connection to a user
+	// We have handshake working!!
+	// We want test handshake errors including server times out
+	// Router Package, map socket to user, and then send a message to the user
+	// Finish this code.
 
 	c, err := a.WS.Upgrade(web.GetWriter(ctx), r, nil)
 	if err != nil {
