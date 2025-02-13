@@ -17,6 +17,15 @@ import (
 	"github.com/ardanlabs/usdl/chat/foundation/web"
 )
 
+/*
+	Need work on socket drops.
+	We have basic chat working.
+	Don't judge on the client right now!! :)
+	Figure out next steps
+	Ping / Pong (not getting one)
+	START WITH FULL CODE REVIEW AND CLIENT CLEANUP
+*/
+
 var build = "develop"
 
 func main() {

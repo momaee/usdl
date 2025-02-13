@@ -5,10 +5,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type connection struct {
-	id   uuid.UUID
-	name string
-	conn *websocket.Conn
+type User struct {
+	ID   uuid.UUID       `json:"id"`
+	Name string          `json:"name"`
+	Conn *websocket.Conn `json:"-"`
 }
 
 type inMessage struct {
@@ -17,13 +17,8 @@ type inMessage struct {
 	Msg    string    `json:"msg"`
 }
 
-type user struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
-}
-
 type outMessage struct {
-	From user   `json:"from"`
-	To   user   `json:"to"`
+	From User   `json:"from"`
+	To   User   `json:"to"`
 	Msg  string `json:"msg"`
 }

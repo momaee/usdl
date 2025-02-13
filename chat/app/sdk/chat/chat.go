@@ -4,10 +4,13 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/ardanlabs/usdl/chat/app/sdk/errs"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -19,7 +22,7 @@ var ErrToNotExists = fmt.Errorf("to user doesn't exists")
 // Chat represents a chat support.
 type Chat struct {
 	log   *logger.Logger
-	users map[uuid.UUID]connection
+	users map[uuid.UUID]User
 	mu    sync.RWMutex
 }
 
@@ -27,7 +30,7 @@ type Chat struct {
 func New(log *logger.Logger) *Chat {
 	c := Chat{
 		log:   log,
-		users: make(map[uuid.UUID]connection),
+		users: make(map[uuid.UUID]User),
 	}
 
 	c.ping()
@@ -36,65 +39,128 @@ func New(log *logger.Logger) *Chat {
 }
 
 // Handshake performs the connection handshake protocol.
-func (c *Chat) Handshake(ctx context.Context, conn *websocket.Conn) error {
-	err := conn.WriteMessage(websocket.TextMessage, []byte("HELLO"))
+func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Request) (User, error) {
+	var ws websocket.Upgrader
+	conn, err := ws.Upgrade(w, r, nil)
 	if err != nil {
-		return fmt.Errorf("write message: %w", err)
+		return User{}, errs.Newf(errs.FailedPrecondition, "unable to upgrade to websocket")
+	}
+
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("HELLO")); err != nil {
+		return User{}, fmt.Errorf("write message: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 
-	msg, err := c.readMessage(ctx, conn)
+	usr := User{
+		Conn: conn,
+	}
+
+	msg, err := c.readMessage(ctx, usr)
 	if err != nil {
-		return fmt.Errorf("read message: %w", err)
+		return User{}, fmt.Errorf("read message: %w", err)
 	}
 
-	var usr user
 	if err := json.Unmarshal(msg, &usr); err != nil {
-		return fmt.Errorf("unmarshal message: %w", err)
+		return User{}, fmt.Errorf("unmarshal message: %w", err)
 	}
 
-	if err := c.addUser(usr, conn); err != nil {
+	if err := c.addUser(ctx, usr); err != nil {
 		defer conn.Close()
 		if err := conn.WriteMessage(websocket.TextMessage, []byte("Already Connected")); err != nil {
-			return fmt.Errorf("write message: %w", err)
+			return User{}, fmt.Errorf("write message: %w", err)
 		}
-		return fmt.Errorf("add user: %w", err)
+		return User{}, fmt.Errorf("add user: %w", err)
 	}
 
 	v := fmt.Sprintf("WELCOME %s", usr.Name)
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(v)); err != nil {
-		return fmt.Errorf("write message: %w", err)
+		return User{}, fmt.Errorf("write message: %w", err)
 	}
 
-	c.log.Info(ctx, "handshake complete", "usr", usr)
+	c.log.Info(ctx, "chat-handshake", "status", "complete", "usr", usr)
 
-	return nil
+	return usr, nil
 }
 
 // Listen waits for messages from users.
-func (c *Chat) Listen(ctx context.Context, conn *websocket.Conn) {
+func (c *Chat) Listen(ctx context.Context, usr User) {
 	for {
-		msg, err := c.readMessage(ctx, conn)
+		msg, err := c.readMessage(ctx, usr)
 		if err != nil {
-			c.log.Info(ctx, "listen-read", "err", err)
-			return
+			if c.isCriticalError(ctx, err) {
+				return
+			}
+			continue
 		}
 
 		var inMsg inMessage
 		if err := json.Unmarshal(msg, &inMsg); err != nil {
-			c.log.Info(ctx, "listen-unmarshal", "err", err)
-			return
+			c.log.Info(ctx, "chat-listen-unmarshal", "err", err)
+			continue
 		}
 
 		if err := c.sendMessage(inMsg); err != nil {
-			c.log.Info(ctx, "listen-send", "err", err)
+			c.log.Info(ctx, "chat-listen-send", "err", err)
 		}
 	}
 }
 
 // =============================================================================
+
+func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
+	switch err.(type) {
+	case *websocket.CloseError:
+		c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
+		return true
+
+	default:
+		if errors.Is(err, context.Canceled) {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "client canceled")
+			return true
+		}
+
+		c.log.Info(ctx, "chat-isCriticalError", "err", err)
+		return false
+	}
+}
+
+func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
+	type response struct {
+		msg []byte
+		err error
+	}
+
+	ch := make(chan response, 1)
+
+	go func() {
+		c.log.Info(ctx, "chat-readMessage", "status", "started")
+		defer c.log.Info(ctx, "chat-readMessage", "status", "completed")
+
+		_, msg, err := usr.Conn.ReadMessage()
+		if err != nil {
+			ch <- response{nil, err}
+		}
+		ch <- response{msg, nil}
+	}()
+
+	var resp response
+
+	select {
+	case <-ctx.Done():
+		c.removeUser(ctx, usr.ID)
+		return nil, ctx.Err()
+
+	case resp = <-ch:
+		if resp.err != nil {
+			c.removeUser(ctx, usr.ID)
+			return nil, resp.err
+		}
+	}
+
+	return resp.msg, nil
+}
 
 func (c *Chat) sendMessage(msg inMessage) error {
 	c.mu.RLock()
@@ -111,31 +177,31 @@ func (c *Chat) sendMessage(msg inMessage) error {
 	}
 
 	m := outMessage{
-		From: user{
-			ID:   from.id,
-			Name: from.name,
+		From: User{
+			ID:   from.ID,
+			Name: from.Name,
 		},
-		To: user{
-			ID:   to.id,
-			Name: to.name,
+		To: User{
+			ID:   to.ID,
+			Name: to.Name,
 		},
 		Msg: msg.Msg,
 	}
 
-	if err := to.conn.WriteJSON(m); err != nil {
+	if err := to.Conn.WriteJSON(m); err != nil {
 		return fmt.Errorf("write message: %w", err)
 	}
 
 	return nil
 }
 
-func (c *Chat) connections() map[uuid.UUID]connection {
+func (c *Chat) connections() map[uuid.UUID]*websocket.Conn {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	m := make(map[uuid.UUID]connection)
-	for k, v := range c.users {
-		m[k] = v
+	m := make(map[uuid.UUID]*websocket.Conn)
+	for id, usr := range c.users {
+		m[id] = usr.Conn
 	}
 
 	return m
@@ -145,25 +211,23 @@ func (c *Chat) ping() {
 	ticker := time.NewTicker(10 * time.Second)
 
 	go func() {
+		ctx := context.Background()
+
 		for {
 			<-ticker.C
 
-			c.log.Info(context.Background(), "PING", "status", "started")
+			// Check to see if we got PONGS for the last set of PINGS.
 
-			for k, v := range c.connections() {
-				c.log.Info(context.Background(), "PING", "name", v.name, "id", v.id)
-
-				if err := v.conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
-					c.removeUser(k)
+			for k, conn := range c.connections() {
+				if err := conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
+					c.log.Info(ctx, "chat-PING", "status", "failed", "id", k, "err", err)
 				}
 			}
-
-			c.log.Info(context.Background(), "PING", "status", "completed")
 		}
 	}()
 }
 
-func (c *Chat) addUser(usr user, conn *websocket.Conn) error {
+func (c *Chat) addUser(ctx context.Context, usr User) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -171,64 +235,25 @@ func (c *Chat) addUser(usr user, conn *websocket.Conn) error {
 		return fmt.Errorf("user exists")
 	}
 
-	c.log.Info(context.Background(), "add user", "name", usr.Name, "id", usr.ID)
+	c.log.Info(ctx, "chat-adduser", "name", usr.Name, "id", usr.ID)
 
-	c.users[usr.ID] = connection{
-		id:   usr.ID,
-		name: usr.Name,
-		conn: conn,
-	}
+	c.users[usr.ID] = usr
 
 	return nil
 }
 
-func (c *Chat) removeUser(userID uuid.UUID) {
+func (c *Chat) removeUser(ctx context.Context, userID uuid.UUID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	v, exists := c.users[userID]
+	usr, exists := c.users[userID]
 	if !exists {
-		c.log.Info(context.Background(), "remove user", "userID", userID, "status", "does not exists")
+		c.log.Info(ctx, "chat-removeuser", "userID", userID, "status", "does not exists")
 		return
 	}
 
-	c.log.Info(context.Background(), "remove user", "name", v.name, "id", v.id)
+	c.log.Info(ctx, "chat-removeuser", "name", usr.Name, "id", usr.ID)
 
 	delete(c.users, userID)
-	v.conn.Close()
-}
-
-func (c *Chat) readMessage(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
-	type response struct {
-		msg []byte
-		err error
-	}
-
-	ch := make(chan response, 1)
-
-	go func() {
-		c.log.Info(ctx, "chat", "status", "starting handshake read")
-		defer c.log.Info(ctx, "chat", "status", "completed handshake read")
-
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			ch <- response{nil, err}
-		}
-		ch <- response{msg, nil}
-	}()
-
-	var resp response
-
-	select {
-	case <-ctx.Done():
-		conn.Close()
-		return nil, ctx.Err()
-
-	case resp = <-ch:
-		if resp.err != nil {
-			return nil, fmt.Errorf("empty message")
-		}
-	}
-
-	return resp.msg, nil
+	usr.Conn.Close()
 }
