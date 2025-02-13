@@ -18,12 +18,12 @@ import (
 )
 
 /*
-	Need work on socket drops.
-	We have basic chat working.
-	Don't judge on the client right now!! :)
-	Figure out next steps
+	Need logs for messages in/out
 	Ping / Pong (not getting one)
-	START WITH FULL CODE REVIEW AND CLIENT CLEANUP
+	CAP <-> CAP communication
+		Internally w/ own queue
+		NATS
+	Refactor client
 */
 
 var build = "develop"

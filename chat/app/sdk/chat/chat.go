@@ -104,7 +104,7 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 			continue
 		}
 
-		if err := c.sendMessage(inMsg); err != nil {
+		if err := c.sendMessage(usr, inMsg); err != nil {
 			c.log.Info(ctx, "chat-listen-send", "err", err)
 		}
 	}
@@ -138,9 +138,6 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	ch := make(chan response, 1)
 
 	go func() {
-		c.log.Info(ctx, "chat-readMessage", "status", "started")
-		defer c.log.Info(ctx, "chat-readMessage", "status", "completed")
-
 		_, msg, err := usr.Conn.ReadMessage()
 		if err != nil {
 			ch <- response{nil, err}
@@ -165,14 +162,9 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) sendMessage(msg inMessage) error {
+func (c *Chat) sendMessage(usr User, msg inMessage) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
-	from, exists := c.users[msg.FromID]
-	if !exists {
-		return ErrFromNotExists
-	}
 
 	to, exists := c.users[msg.ToID]
 	if !exists {
@@ -181,12 +173,8 @@ func (c *Chat) sendMessage(msg inMessage) error {
 
 	m := outMessage{
 		From: User{
-			ID:   from.ID,
-			Name: from.Name,
-		},
-		To: User{
-			ID:   to.ID,
-			Name: to.Name,
+			ID:   usr.ID,
+			Name: usr.Name,
 		},
 		Msg: msg.Msg,
 	}

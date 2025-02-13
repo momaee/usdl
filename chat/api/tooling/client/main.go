@@ -116,22 +116,18 @@ func hack1() error {
 			return fmt.Errorf("read input: %w", err)
 		}
 
-		var from uuid.UUID
 		var to uuid.UUID
 
 		switch os.Args[1] {
 		case "0":
-			from = users[0]
 			to = users[1]
 		case "1":
-			from = users[1]
 			to = users[0]
 		}
 
 		inMsg := inMessage{
-			FromID: from,
-			ToID:   to,
-			Msg:    input,
+			ToID: to,
+			Msg:  input,
 		}
 
 		data2, err := json.Marshal(inMsg)
@@ -146,9 +142,8 @@ func hack1() error {
 }
 
 type inMessage struct {
-	FromID uuid.UUID `json:"fromID"`
-	ToID   uuid.UUID `json:"toID"`
-	Msg    string    `json:"msg"`
+	ToID uuid.UUID `json:"toID"`
+	Msg  string    `json:"msg"`
 }
 
 type user struct {
@@ -158,6 +153,5 @@ type user struct {
 
 type outMessage struct {
 	From user   `json:"from"`
-	To   user   `json:"to"`
 	Msg  string `json:"msg"`
 }
