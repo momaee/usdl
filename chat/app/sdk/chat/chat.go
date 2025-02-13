@@ -16,8 +16,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var ErrFromNotExists = fmt.Errorf("from user doesn't exists")
-var ErrToNotExists = fmt.Errorf("to user doesn't exists")
+// Set of error variables.
+var (
+	ErrFromNotExists = fmt.Errorf("from user doesn't exists")
+	ErrToNotExists   = fmt.Errorf("to user doesn't exists")
+)
 
 // Chat represents a chat support.
 type Chat struct {

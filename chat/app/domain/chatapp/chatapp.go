@@ -1,3 +1,4 @@
+// Package chatapp provides the application layer for the chat service.
 package chatapp
 
 import (

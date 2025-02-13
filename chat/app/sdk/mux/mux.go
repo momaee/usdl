@@ -1,3 +1,4 @@
+// Package mux provides routing support.
 package mux
 
 import (
