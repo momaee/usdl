@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/ardanlabs/usdl/chat/app/sdk/errs"
@@ -18,22 +18,30 @@ import (
 
 // Set of error variables.
 var (
-	ErrFromNotExists = fmt.Errorf("from user doesn't exists")
-	ErrToNotExists   = fmt.Errorf("to user doesn't exists")
+	ErrExists    = fmt.Errorf("user exists")
+	ErrNotExists = fmt.Errorf("user doesn't exists")
 )
+
+// Users defines the set of behavior for user management.
+type Users interface {
+	Add(ctx context.Context, usr User) error
+	UpdateLastPong(ctx context.Context, userID uuid.UUID) error
+	Remove(ctx context.Context, userID uuid.UUID)
+	Connections() map[uuid.UUID]Connection
+	Retrieve(ctx context.Context, userID uuid.UUID) (User, error)
+}
 
 // Chat represents a chat support.
 type Chat struct {
 	log   *logger.Logger
-	users map[uuid.UUID]User
-	mu    sync.RWMutex
+	users Users
 }
 
 // New creates a new chat support.
-func New(log *logger.Logger) *Chat {
+func New(log *logger.Logger, users Users) *Chat {
 	c := Chat{
 		log:   log,
-		users: make(map[uuid.UUID]User),
+		users: users,
 	}
 
 	c.ping()
@@ -57,7 +65,8 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 	defer cancel()
 
 	usr := User{
-		Conn: conn,
+		Conn:     conn,
+		LastPong: time.Now(),
 	}
 
 	msg, err := c.readMessage(ctx, usr)
@@ -69,7 +78,7 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return User{}, fmt.Errorf("unmarshal message: %w", err)
 	}
 
-	if err := c.addUser(ctx, usr); err != nil {
+	if err := c.users.Add(ctx, usr); err != nil {
 		defer conn.Close()
 		if err := conn.WriteMessage(websocket.TextMessage, []byte("Already Connected")); err != nil {
 			return User{}, fmt.Errorf("write message: %w", err)
@@ -83,6 +92,42 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 	}
 
 	c.log.Info(ctx, "chat-handshake", "status", "complete", "usr", usr)
+
+	// -------------------------------------------------------------------------
+
+	pong := func(appData string) error {
+		ctx := context.Background()
+
+		usr, err := c.users.Retrieve(ctx, usr.ID)
+		if err != nil {
+			c.log.Info(ctx, "pong-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
+			return nil
+		}
+
+		c.log.Info(ctx, "*** PONG ***", "name", usr.Name, "id", usr.ID, "status", "started")
+		defer c.log.Info(ctx, "*** PONG ***", "name", usr.Name, "id", usr.ID, "status", "completed")
+
+		if err := c.users.UpdateLastPong(ctx, usr.ID); err != nil {
+			c.log.Info(ctx, "pong-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
+			return nil
+		}
+
+		return nil
+	}
+
+	ping := func(appData string) error {
+		c.log.Info(ctx, "ping-handler", "name", usr.Name, "id", usr.ID)
+
+		err := usr.Conn.WriteMessage(websocket.PongMessage, []byte("pong"))
+		if err != nil {
+			c.log.Info(ctx, "ping-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
+		}
+
+		return nil
+	}
+
+	usr.Conn.SetPongHandler(pong)
+	usr.Conn.SetPingHandler(ping)
 
 	return usr, nil
 }
@@ -104,7 +149,7 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 			continue
 		}
 
-		if err := c.sendMessage(usr, inMsg); err != nil {
+		if err := c.sendMessage(ctx, usr, inMsg); err != nil {
 			c.log.Info(ctx, "chat-listen-send", "err", err)
 		}
 	}
@@ -113,10 +158,17 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 // =============================================================================
 
 func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
-	switch err.(type) {
+	switch e := err.(type) {
 	case *websocket.CloseError:
 		c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
 		return true
+
+	case *net.OpError:
+		if !e.Temporary() {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
+			return true
+		}
+		return false
 
 	default:
 		if errors.Is(err, context.Canceled) {
@@ -124,7 +176,7 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 			return true
 		}
 
-		c.log.Info(ctx, "chat-isCriticalError", "err", err)
+		c.log.Info(ctx, "chat-isCriticalError", "err", err, "TYPE", fmt.Sprintf("%T", err))
 		return false
 	}
 }
@@ -149,12 +201,14 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 
 	select {
 	case <-ctx.Done():
-		c.removeUser(ctx, usr.ID)
+		c.users.Remove(ctx, usr.ID)
+		usr.Conn.Close()
 		return nil, ctx.Err()
 
 	case resp = <-ch:
 		if resp.err != nil {
-			c.removeUser(ctx, usr.ID)
+			c.users.Remove(ctx, usr.ID)
+			usr.Conn.Close()
 			return nil, resp.err
 		}
 	}
@@ -162,13 +216,10 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) sendMessage(usr User, msg inMessage) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	to, exists := c.users[msg.ToID]
-	if !exists {
-		return ErrToNotExists
+func (c *Chat) sendMessage(ctx context.Context, usr User, msg inMessage) error {
+	to, err := c.users.Retrieve(ctx, msg.ToID)
+	if err != nil {
+		return err
 	}
 
 	m := outMessage{
@@ -186,20 +237,10 @@ func (c *Chat) sendMessage(usr User, msg inMessage) error {
 	return nil
 }
 
-func (c *Chat) connections() map[uuid.UUID]*websocket.Conn {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	m := make(map[uuid.UUID]*websocket.Conn)
-	for id, usr := range c.users {
-		m[id] = usr.Conn
-	}
-
-	return m
-}
-
 func (c *Chat) ping() {
-	ticker := time.NewTicker(10 * time.Second)
+	const maxWait = 10 * time.Second
+
+	ticker := time.NewTicker(maxWait)
 
 	go func() {
 		ctx := context.Background()
@@ -207,44 +248,21 @@ func (c *Chat) ping() {
 		for {
 			<-ticker.C
 
-			// Check to see if we got PONGS for the last set of PINGS.
+			c.log.Info(ctx, "*** PING ***", "status", "started")
 
-			for k, conn := range c.connections() {
-				if err := conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
-					c.log.Info(ctx, "chat-PING", "status", "failed", "id", k, "err", err)
+			for id, conn := range c.users.Connections() {
+				if time.Since(conn.LastPong) > maxWait {
+					c.log.Info(ctx, "*** PING ***", "lastpong", conn.LastPong, "maxWait", maxWait)
+					c.users.Remove(ctx, id)
+					continue
+				}
+
+				if err := conn.Conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
+					c.log.Info(ctx, "*** PING ***", "status", "failed", "id", id, "err", err)
 				}
 			}
+
+			c.log.Info(ctx, "*** PING ***", "status", "completed")
 		}
 	}()
-}
-
-func (c *Chat) addUser(ctx context.Context, usr User) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if _, exists := c.users[usr.ID]; exists {
-		return fmt.Errorf("user exists")
-	}
-
-	c.log.Info(ctx, "chat-adduser", "name", usr.Name, "id", usr.ID)
-
-	c.users[usr.ID] = usr
-
-	return nil
-}
-
-func (c *Chat) removeUser(ctx context.Context, userID uuid.UUID) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	usr, exists := c.users[userID]
-	if !exists {
-		c.log.Info(ctx, "chat-removeuser", "userID", userID, "status", "does not exists")
-		return
-	}
-
-	c.log.Info(ctx, "chat-removeuser", "name", usr.Name, "id", usr.ID)
-
-	delete(c.users, userID)
-	usr.Conn.Close()
 }

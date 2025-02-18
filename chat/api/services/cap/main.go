@@ -18,8 +18,15 @@ import (
 )
 
 /*
+	PING/PONG not working 100% - Need to debug.
+		We are getting remove user during ping/pong in ping() function.
+		Move ping/pong handlers to their own functions.
+		We didn't get a ping from the client as we thought.
+		CAP: 2025-02-18T13:16:48.274656-05:00: chat.go:248: INFO: 00000000-0000-0000-0000-000000000000: *** PING ***: status[started]
+		CAP: 2025-02-18T13:16:48.274795-05:00: users.go:77: INFO: 00000000-0000-0000-0000-000000000000: chat-removeuser: name[Bill Kennedy]: id[8ce5af7a-788c-4c83-8e70-4500b775b359]
+		CAP: 2025-02-18T13:16:48.274818-05:00: chat.go:261: INFO: 00000000-0000-0000-0000-000000000000: *** PING ***: status[completed]
+
 	Need logs for messages in/out
-	Ping / Pong (not getting one)
 	CAP <-> CAP communication
 		Internally w/ own queue
 		NATS
