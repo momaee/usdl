@@ -118,9 +118,13 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 			continue
 		}
 
+		c.log.Info(ctx, "msg recv", "from", usr.ID, "to", inMsg.ToID)
+
 		if err := c.sendMessage(ctx, usr, inMsg); err != nil {
 			c.log.Info(ctx, "chat-listen-send", "ERROR", err)
 		}
+
+		c.log.Info(ctx, "msg sent", "from", usr.ID, "to", inMsg.ToID)
 	}
 }
 
@@ -264,9 +268,3 @@ func (c *Chat) ping() {
 		}
 	}()
 }
-
-// CAP: 2025-02-20T11:44:05.572535-05:00:
-
-// ping[2025-02-20 11:44:05.572328 -0500 EST m=+30.002857043]
-// pong[2025-02-20 11:43:55.572516 -0500 EST m=+20.003035376]
-// sub[9.999821667s]:
