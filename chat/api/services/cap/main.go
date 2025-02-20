@@ -22,6 +22,7 @@ import (
 		Internally w/ own queue
 		NATS
 	Refactor client
+	Make send message context aware
 */
 
 var build = "develop"

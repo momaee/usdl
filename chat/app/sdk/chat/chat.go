@@ -46,7 +46,8 @@ func New(log *logger.Logger, users Users) *Chat {
 		users: users,
 	}
 
-	c.ping()
+	const maxWait = 10 * time.Second
+	c.ping(maxWait)
 
 	return &c
 }
@@ -102,9 +103,9 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 }
 
 // Listen waits for messages from users.
-func (c *Chat) Listen(ctx context.Context, usr User) {
+func (c *Chat) Listen(ctx context.Context, from User) {
 	for {
-		msg, err := c.readMessage(ctx, usr)
+		msg, err := c.readMessage(ctx, from)
 		if err != nil {
 			if c.isCriticalError(ctx, err) {
 				return
@@ -118,17 +119,33 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 			continue
 		}
 
-		c.log.Info(ctx, "msg recv", "from", usr.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "msg recv", "from", from.ID, "to", inMsg.ToID)
 
-		if err := c.sendMessage(ctx, usr, inMsg); err != nil {
+		to, err := c.users.Retrieve(ctx, inMsg.ToID)
+		if err != nil {
+			if errors.Is(err, ErrNotExists) {
+				c.SendToBus(inMsg)
+			}
+
+			c.log.Info(ctx, "chat-listen-retrieve", "ERROR", err)
+			continue
+		}
+
+		if err := c.sendMessage(from, to, inMsg); err != nil {
 			c.log.Info(ctx, "chat-listen-send", "ERROR", err)
 		}
 
-		c.log.Info(ctx, "msg sent", "from", usr.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "msg sent", "from", from.ID, "to", inMsg.ToID)
 	}
 }
 
 // =============================================================================
+
+func (c *Chat) SendToBus(inMsg inMessage) {
+}
+
+func (c *Chat) listenBus() {
+}
 
 func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 	switch e := err.(type) {
@@ -189,16 +206,11 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) sendMessage(ctx context.Context, usr User, msg inMessage) error {
-	to, err := c.users.Retrieve(ctx, msg.ToID)
-	if err != nil {
-		return err
-	}
-
+func (c *Chat) sendMessage(from User, to User, msg inMessage) error {
 	m := outMessage{
 		From: User{
-			ID:   usr.ID,
-			Name: usr.Name,
+			ID:   from.ID,
+			Name: from.Name,
 		},
 		Msg: msg.Msg,
 	}
@@ -232,9 +244,7 @@ func (c *Chat) pong(id uuid.UUID) func(appData string) error {
 	return f
 }
 
-func (c *Chat) ping() {
-	const maxWait = 10 * time.Second
-
+func (c *Chat) ping(maxWait time.Duration) {
 	ticker := time.NewTicker(maxWait)
 
 	go func() {
