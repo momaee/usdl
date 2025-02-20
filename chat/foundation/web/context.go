@@ -14,7 +14,7 @@ const (
 	traceIDKey
 )
 
-func setTraceID(ctx context.Context, traceID uuid.UUID) context.Context {
+func SetTraceID(ctx context.Context, traceID uuid.UUID) context.Context {
 	return context.WithValue(ctx, traceIDKey, traceID)
 }
 

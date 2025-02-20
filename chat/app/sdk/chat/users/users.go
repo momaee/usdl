@@ -38,13 +38,13 @@ func (u *Users) Add(ctx context.Context, usr chat.User) error {
 
 	u.users[usr.ID] = usr
 
-	u.log.Info(ctx, "chat-adduser", "name", usr.Name, "id", usr.ID)
+	u.log.Debug(ctx, "chat-adduser", "name", usr.Name, "id", usr.ID)
 
 	return nil
 }
 
-// UpdateLastPong updates a user value's pong date/time.
-func (u *Users) UpdateLastPong(ctx context.Context, userID uuid.UUID) error {
+// UpdateLastPing updates a user value's ping date/time.
+func (u *Users) UpdateLastPing(ctx context.Context, userID uuid.UUID) error {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -53,12 +53,30 @@ func (u *Users) UpdateLastPong(ctx context.Context, userID uuid.UUID) error {
 		return chat.ErrNotExists
 	}
 
+	usr.LastPing = time.Now()
+	u.users[usr.ID] = usr
+
+	u.log.Debug(ctx, "chat-upduser", "name", usr.Name, "id", usr.ID, "lastPing", usr.LastPing)
+
+	return nil
+}
+
+// UpdateLastPong updates a user value's pong date/time.
+func (u *Users) UpdateLastPong(ctx context.Context, userID uuid.UUID) (chat.User, error) {
+	u.muUsers.Lock()
+	defer u.muUsers.Unlock()
+
+	usr, exists := u.users[userID]
+	if !exists {
+		return chat.User{}, chat.ErrNotExists
+	}
+
 	usr.LastPong = time.Now()
 	u.users[usr.ID] = usr
 
-	u.log.Info(ctx, "chat-upduser", "name", usr.Name, "id", usr.ID, "lastPong", usr.LastPong)
+	u.log.Debug(ctx, "chat-upduser", "name", usr.Name, "id", usr.ID, "lastPong", usr.LastPong)
 
-	return nil
+	return usr, nil
 }
 
 // Remove removes a user from the storage.
@@ -68,13 +86,13 @@ func (u *Users) Remove(ctx context.Context, userID uuid.UUID) {
 
 	usr, exists := u.users[userID]
 	if !exists {
-		u.log.Info(ctx, "chat-removeuser", "userID", userID, "status", "does not exists")
+		u.log.Debug(ctx, "chat-removeuser", "userID", userID, "status", "does not exists")
 		return
 	}
 
 	delete(u.users, userID)
 
-	u.log.Info(ctx, "chat-removeuser", "name", usr.Name, "id", usr.ID)
+	u.log.Debug(ctx, "chat-removeuser", "name", usr.Name, "id", usr.ID)
 }
 
 // Connections returns all the know users with their connections. A connection
@@ -87,6 +105,7 @@ func (u *Users) Connections() map[uuid.UUID]chat.Connection {
 	for id, usr := range u.users {
 		m[id] = chat.Connection{
 			Conn:     usr.Conn,
+			LastPing: usr.LastPing,
 			LastPong: usr.LastPong,
 		}
 	}

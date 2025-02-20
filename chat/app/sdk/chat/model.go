@@ -11,6 +11,7 @@ import (
 type User struct {
 	ID       uuid.UUID       `json:"id"`
 	Name     string          `json:"name"`
+	LastPing time.Time       `json:"lastPing"`
 	LastPong time.Time       `json:"lastPong"`
 	Conn     *websocket.Conn `json:"-"`
 }
@@ -18,6 +19,7 @@ type User struct {
 // Connection represents a connection to a user.
 type Connection struct {
 	Conn     *websocket.Conn
+	LastPing time.Time
 	LastPong time.Time
 }
 

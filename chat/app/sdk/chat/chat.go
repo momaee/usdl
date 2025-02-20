@@ -12,6 +12,7 @@ import (
 
 	"github.com/ardanlabs/usdl/chat/app/sdk/errs"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
+	"github.com/ardanlabs/usdl/chat/foundation/web"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -25,7 +26,8 @@ var (
 // Users defines the set of behavior for user management.
 type Users interface {
 	Add(ctx context.Context, usr User) error
-	UpdateLastPong(ctx context.Context, userID uuid.UUID) error
+	UpdateLastPing(ctx context.Context, userID uuid.UUID) error
+	UpdateLastPong(ctx context.Context, userID uuid.UUID) (User, error)
 	Remove(ctx context.Context, userID uuid.UUID)
 	Connections() map[uuid.UUID]Connection
 	Retrieve(ctx context.Context, userID uuid.UUID) (User, error)
@@ -66,6 +68,7 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 
 	usr := User{
 		Conn:     conn,
+		LastPing: time.Now(),
 		LastPong: time.Now(),
 	}
 
@@ -86,48 +89,14 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return User{}, fmt.Errorf("add user: %w", err)
 	}
 
+	usr.Conn.SetPongHandler(c.pong(usr.ID))
+
 	v := fmt.Sprintf("WELCOME %s", usr.Name)
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(v)); err != nil {
 		return User{}, fmt.Errorf("write message: %w", err)
 	}
 
 	c.log.Info(ctx, "chat-handshake", "status", "complete", "usr", usr)
-
-	// -------------------------------------------------------------------------
-
-	pong := func(appData string) error {
-		ctx := context.Background()
-
-		usr, err := c.users.Retrieve(ctx, usr.ID)
-		if err != nil {
-			c.log.Info(ctx, "pong-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
-			return nil
-		}
-
-		c.log.Info(ctx, "*** PONG ***", "name", usr.Name, "id", usr.ID, "status", "started")
-		defer c.log.Info(ctx, "*** PONG ***", "name", usr.Name, "id", usr.ID, "status", "completed")
-
-		if err := c.users.UpdateLastPong(ctx, usr.ID); err != nil {
-			c.log.Info(ctx, "pong-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
-			return nil
-		}
-
-		return nil
-	}
-
-	ping := func(appData string) error {
-		c.log.Info(ctx, "ping-handler", "name", usr.Name, "id", usr.ID)
-
-		err := usr.Conn.WriteMessage(websocket.PongMessage, []byte("pong"))
-		if err != nil {
-			c.log.Info(ctx, "ping-handler", "name", usr.Name, "id", usr.ID, "ERROR", err)
-		}
-
-		return nil
-	}
-
-	usr.Conn.SetPongHandler(pong)
-	usr.Conn.SetPingHandler(ping)
 
 	return usr, nil
 }
@@ -145,12 +114,12 @@ func (c *Chat) Listen(ctx context.Context, usr User) {
 
 		var inMsg inMessage
 		if err := json.Unmarshal(msg, &inMsg); err != nil {
-			c.log.Info(ctx, "chat-listen-unmarshal", "err", err)
+			c.log.Info(ctx, "chat-listen-unmarshal", "ERROR", err)
 			continue
 		}
 
 		if err := c.sendMessage(ctx, usr, inMsg); err != nil {
-			c.log.Info(ctx, "chat-listen-send", "err", err)
+			c.log.Info(ctx, "chat-listen-send", "ERROR", err)
 		}
 	}
 }
@@ -176,7 +145,7 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 			return true
 		}
 
-		c.log.Info(ctx, "chat-isCriticalError", "err", err, "TYPE", fmt.Sprintf("%T", err))
+		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
 		return false
 	}
 }
@@ -237,32 +206,67 @@ func (c *Chat) sendMessage(ctx context.Context, usr User, msg inMessage) error {
 	return nil
 }
 
+func (c *Chat) pong(id uuid.UUID) func(appData string) error {
+	f := func(appData string) error {
+		ctx := web.SetTraceID(context.Background(), uuid.New())
+
+		c.log.Debug(ctx, "*** PONG ***", "id", id, "status", "started")
+		defer c.log.Debug(ctx, "*** PONG ***", "id", id, "status", "completed")
+
+		usr, err := c.users.UpdateLastPong(ctx, id)
+		if err != nil {
+			c.log.Info(ctx, "*** PONG ***", "id", id, "ERROR", err)
+			return nil
+		}
+
+		sub := usr.LastPong.Sub(usr.LastPing)
+		c.log.Debug(ctx, "*** PONG ***", "id", id, "status", "received", "sub", sub.String(), "ping", usr.LastPing.String(), "pong", usr.LastPong.String())
+
+		return nil
+	}
+
+	return f
+}
+
 func (c *Chat) ping() {
 	const maxWait = 10 * time.Second
 
 	ticker := time.NewTicker(maxWait)
 
 	go func() {
-		ctx := context.Background()
+		ctx := web.SetTraceID(context.Background(), uuid.New())
 
 		for {
 			<-ticker.C
 
-			c.log.Info(ctx, "*** PING ***", "status", "started")
+			c.log.Debug(ctx, "*** PING ***", "status", "started")
 
 			for id, conn := range c.users.Connections() {
-				if time.Since(conn.LastPong) > maxWait {
-					c.log.Info(ctx, "*** PING ***", "lastpong", conn.LastPong, "maxWait", maxWait)
+				sub := conn.LastPong.Sub(conn.LastPing)
+				if sub > maxWait {
+					c.log.Info(ctx, "*** PING ***", "ping", conn.LastPing.String(), "pong", conn.LastPong.Second(), "maxWait", maxWait, "sub", sub.String())
 					c.users.Remove(ctx, id)
 					continue
 				}
 
+				c.log.Debug(ctx, "*** PING ***", "status", "sending", "id", id)
+
 				if err := conn.Conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
-					c.log.Info(ctx, "*** PING ***", "status", "failed", "id", id, "err", err)
+					c.log.Info(ctx, "*** PING ***", "status", "failed", "id", id, "ERROR", err)
+				}
+
+				if err := c.users.UpdateLastPing(ctx, id); err != nil {
+					c.log.Info(ctx, "*** PING ***", "status", "failed", "id", id, "ERROR", err)
 				}
 			}
 
-			c.log.Info(ctx, "*** PING ***", "status", "completed")
+			c.log.Debug(ctx, "*** PING ***", "status", "completed")
 		}
 	}()
 }
+
+// CAP: 2025-02-20T11:44:05.572535-05:00:
+
+// ping[2025-02-20 11:44:05.572328 -0500 EST m=+30.002857043]
+// pong[2025-02-20 11:43:55.572516 -0500 EST m=+20.003035376]
+// sub[9.999821667s]:
