@@ -18,11 +18,11 @@ import (
 )
 
 /*
-	CAP <-> CAP communication
-		Internally w/ own queue
-		NATS
+	We have the hack program running with NATS!!!
+	CAP <-> CAP communication w/ NATS
+		- ON MY MACHINE
 	Refactor client
-	Make send message context aware
+	NGROK to open hole to my machine from yours
 */
 
 var build = "develop"
