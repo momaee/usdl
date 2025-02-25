@@ -53,7 +53,6 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 	_, err = js.AddStream(&nats.StreamConfig{
 		Name:     subject,
 		Subjects: []string{subject},
-		NoAck:    true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("nats add js: %w", err)
@@ -304,6 +303,8 @@ func (c *Chat) readMessageBus(ctx context.Context) (*nats.Msg, error) {
 		if resp.err != nil {
 			return nil, resp.err
 		}
+
+		resp.msg.Ack()
 	}
 
 	return resp.msg, nil
