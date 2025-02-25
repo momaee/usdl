@@ -160,15 +160,19 @@ func (c *Chat) Listen(ctx context.Context, from User) {
 			continue
 		}
 
-		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
 
 		to, err := c.users.Retrieve(ctx, inMsg.ToID)
 		if err != nil {
-			if errors.Is(err, ErrNotExists) {
+			switch {
+			case errors.Is(err, ErrNotExists):
+				c.log.Info(ctx, "loc-retrieve", "status", "user not found, sending over bus")
 				c.sendMessageBus(from, inMsg)
+
+			default:
+				c.log.Info(ctx, "loc-retrieve", "ERROR", err)
 			}
 
-			c.log.Info(ctx, "loc-retrieve", "ERROR", err)
 			continue
 		}
 
@@ -230,11 +234,18 @@ func (c *Chat) listenBus() {
 				continue
 			}
 
-			c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "msg", busMsg.Msg)
+			c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg)
 
 			to, err := c.users.Retrieve(ctx, busMsg.ToID)
 			if err != nil {
-				c.log.Info(ctx, "bus-retrieve", "status", "user not found")
+				switch {
+				case errors.Is(err, ErrNotExists):
+					c.log.Info(ctx, "bus-retrieve", "status", "user not found")
+
+				default:
+					c.log.Info(ctx, "bus-retrieve", "ERROR", err)
+				}
+
 				continue
 			}
 
