@@ -167,7 +167,9 @@ func (c *Chat) Listen(ctx context.Context, from User) {
 			switch {
 			case errors.Is(err, ErrNotExists):
 				c.log.Info(ctx, "loc-retrieve", "status", "user not found, sending over bus")
-				c.sendMessageBus(from, inMsg)
+				if err := c.sendMessageBus(from, inMsg); err != nil {
+					c.log.Info(ctx, "loc-bussend", "ERROR", err)
+				}
 
 			default:
 				c.log.Info(ctx, "loc-retrieve", "ERROR", err)
