@@ -53,6 +53,7 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 	_, err = js.AddStream(&nats.StreamConfig{
 		Name:     subject,
 		Subjects: []string{subject},
+		NoAck:    true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("nats add js: %w", err)
@@ -191,6 +192,11 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 			return true
 		}
 
+		if errors.Is(err, nats.ErrConnectionClosed) {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "nats connection closed")
+			return true
+		}
+
 		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
 		return false
 	}
@@ -215,7 +221,7 @@ func (c *Chat) listenBus() {
 				continue
 			}
 
-			c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID)
+			c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "msg", busMsg.Msg)
 
 			to, err := c.users.Retrieve(ctx, busMsg.ToID)
 			if err != nil {
