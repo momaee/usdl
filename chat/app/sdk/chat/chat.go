@@ -50,6 +50,8 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		return nil, fmt.Errorf("nats create js: %w", err)
 	}
 
+	// js.DeleteStream(subject)
+
 	_, err = js.AddStream(&nats.StreamConfig{
 		Name:     subject,
 		Subjects: []string{subject},
@@ -66,7 +68,7 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		return nil, fmt.Errorf("nats add consumer: %w", err)
 	}
 
-	sub, err := js.SubscribeSync(subject)
+	sub, err := js.SubscribeSync(subject, nats.DeliverNew())
 	if err != nil {
 		return nil, fmt.Errorf("nats subscription: %w", err)
 	}
