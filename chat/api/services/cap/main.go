@@ -12,17 +12,18 @@ import (
 	"time"
 
 	"github.com/ardanlabs/conf/v3"
+	"github.com/ardanlabs/usdl/chat/app/sdk/chat"
+	"github.com/ardanlabs/usdl/chat/app/sdk/chat/users"
 	"github.com/ardanlabs/usdl/chat/app/sdk/mux"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
 	"github.com/ardanlabs/usdl/chat/foundation/web"
+	"github.com/nats-io/nats.go"
 )
 
 /*
-	We have the hack program running with NATS!!!
 	CAP <-> CAP communication w/ NATS
 		- ON MY MACHINE
 	Refactor client
-	NGROK to open hole to my machine from yours
 */
 
 var build = "develop"
@@ -65,6 +66,10 @@ func run(ctx context.Context, log *logger.Logger) error {
 			ShutdownTimeout time.Duration `conf:"default:20s"`
 			APIHost         string        `conf:"default:0.0.0.0:3000"`
 		}
+		NATS struct {
+			Host    string `conf:"default:demo.nats.io"`
+			Subject string `conf:"default:ardanlabs-cap"`
+		}
 	}{
 		Version: conf.Version{
 			Build: build,
@@ -97,6 +102,20 @@ func run(ctx context.Context, log *logger.Logger) error {
 	log.BuildInfo(ctx)
 
 	// -------------------------------------------------------------------------
+	// Chat and NATS
+
+	nc, err := nats.Connect(cfg.NATS.Host)
+	if err != nil {
+		return fmt.Errorf("nats connect: %w", err)
+	}
+	defer nc.Close()
+
+	chat, err := chat.New(log, nc, cfg.NATS.Subject, users.New(log))
+	if err != nil {
+		return fmt.Errorf("chat: %w", err)
+	}
+
+	// -------------------------------------------------------------------------
 	// Start API Service
 
 	log.Info(ctx, "startup", "status", "initializing V1 API support")
@@ -105,7 +124,8 @@ func run(ctx context.Context, log *logger.Logger) error {
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
 	cfgMux := mux.Config{
-		Log: log,
+		Log:  log,
+		Chat: chat,
 	}
 
 	webAPI := mux.WebAPI(cfgMux)

@@ -9,6 +9,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const host = "demo.nats.io"
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -40,7 +42,7 @@ func run() error {
 }
 
 func recieve() error {
-	nc, err := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(host)
 	if err != nil {
 		return fmt.Errorf("recieve: %w", err)
 	}
@@ -69,7 +71,7 @@ func recieve() error {
 }
 
 func publish() error {
-	nc, err := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(host)
 	if err != nil {
 		return fmt.Errorf("publish: %w", err)
 	}
@@ -81,6 +83,8 @@ func publish() error {
 		return fmt.Errorf("publish: %w", err)
 	}
 
+	fmt.Println("Publishing message...")
+
 	_, err = js.Publish("cap", []byte("Hello, JetStream!"))
 	if err != nil {
 		return fmt.Errorf("publish: %w", err)
@@ -90,7 +94,7 @@ func publish() error {
 }
 
 func create() error {
-	nc, err := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(host)
 	if err != nil {
 		return fmt.Errorf("create: %w", err)
 	}

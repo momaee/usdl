@@ -32,3 +32,10 @@ type outMessage struct {
 	From User   `json:"from"`
 	Msg  string `json:"msg"`
 }
+
+type busMessage struct {
+	FromID   uuid.UUID `json:"fromID"`
+	FromName string    `json:"fromName"`
+	ToID     uuid.UUID `json:"toID"`
+	Msg      string    `json:"msg"`
+}

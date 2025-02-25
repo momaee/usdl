@@ -15,6 +15,7 @@ import (
 	"github.com/ardanlabs/usdl/chat/foundation/web"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 )
 
 // Set of error variables.
@@ -35,21 +36,47 @@ type Users interface {
 
 // Chat represents a chat support.
 type Chat struct {
-	log   *logger.Logger
-	users Users
+	log          *logger.Logger
+	js           nats.JetStreamContext
+	subscription *nats.Subscription
+	subject      string
+	users        Users
 }
 
 // New creates a new chat support.
-func New(log *logger.Logger, users Users) *Chat {
-	c := Chat{
-		log:   log,
-		users: users,
+func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Chat, error) {
+	js, err := conn.JetStream()
+	if err != nil {
+		return nil, fmt.Errorf("nats create js: %w", err)
 	}
+
+	_, err = js.AddStream(&nats.StreamConfig{
+		Name:     subject,
+		Subjects: []string{subject},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("nats add js: %w", err)
+	}
+
+	sub, err := js.SubscribeSync(subject)
+	if err != nil {
+		return nil, fmt.Errorf("nats subscription: %w", err)
+	}
+
+	c := Chat{
+		log:          log,
+		js:           js,
+		subscription: sub,
+		subject:      subject,
+		users:        users,
+	}
+
+	c.listenBus()
 
 	const maxWait = 10 * time.Second
 	c.ping(maxWait)
 
-	return &c
+	return &c, nil
 }
 
 // Handshake performs the connection handshake protocol.
@@ -82,6 +109,8 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return User{}, fmt.Errorf("unmarshal message: %w", err)
 	}
 
+	// -------------------------------------------------------------------------
+
 	if err := c.users.Add(ctx, usr); err != nil {
 		defer conn.Close()
 		if err := conn.WriteMessage(websocket.TextMessage, []byte("Already Connected")); err != nil {
@@ -91,6 +120,8 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 	}
 
 	usr.Conn.SetPongHandler(c.pong(usr.ID))
+
+	// -------------------------------------------------------------------------
 
 	v := fmt.Sprintf("WELCOME %s", usr.Name)
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(v)); err != nil {
@@ -115,37 +146,31 @@ func (c *Chat) Listen(ctx context.Context, from User) {
 
 		var inMsg inMessage
 		if err := json.Unmarshal(msg, &inMsg); err != nil {
-			c.log.Info(ctx, "chat-listen-unmarshal", "ERROR", err)
+			c.log.Info(ctx, "loc-unmarshal", "ERROR", err)
 			continue
 		}
 
-		c.log.Info(ctx, "msg recv", "from", from.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID)
 
 		to, err := c.users.Retrieve(ctx, inMsg.ToID)
 		if err != nil {
 			if errors.Is(err, ErrNotExists) {
-				c.SendToBus(inMsg)
+				c.sendMessageBus(from, inMsg)
 			}
 
-			c.log.Info(ctx, "chat-listen-retrieve", "ERROR", err)
+			c.log.Info(ctx, "loc-retrieve", "ERROR", err)
 			continue
 		}
 
-		if err := c.sendMessage(from, to, inMsg); err != nil {
-			c.log.Info(ctx, "chat-listen-send", "ERROR", err)
+		if err := c.sendMessage(from, to, inMsg.Msg); err != nil {
+			c.log.Info(ctx, "loc-send", "ERROR", err)
 		}
 
-		c.log.Info(ctx, "msg sent", "from", from.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "LOC: msg sent", "from", from.ID, "to", inMsg.ToID)
 	}
 }
 
 // =============================================================================
-
-func (c *Chat) SendToBus(inMsg inMessage) {
-}
-
-func (c *Chat) listenBus() {
-}
 
 func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 	switch e := err.(type) {
@@ -169,6 +194,47 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
 		return false
 	}
+}
+
+func (c *Chat) listenBus() {
+	ctx := web.SetTraceID(context.Background(), uuid.New())
+
+	go func() {
+		for {
+			msg, err := c.readMessageBus(ctx)
+			if err != nil {
+				if c.isCriticalError(ctx, err) {
+					return
+				}
+				continue
+			}
+
+			var busMsg busMessage
+			if err := json.Unmarshal(msg.Data, &busMsg); err != nil {
+				c.log.Info(ctx, "bus-unmarshal", "ERROR", err)
+				continue
+			}
+
+			c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID)
+
+			to, err := c.users.Retrieve(ctx, busMsg.ToID)
+			if err != nil {
+				c.log.Info(ctx, "bus-retrieve", "status", "user not found")
+				continue
+			}
+
+			from := User{
+				ID:   busMsg.FromID,
+				Name: busMsg.FromName,
+			}
+
+			if err := c.sendMessage(from, to, busMsg.Msg); err != nil {
+				c.log.Info(ctx, "bus-send", "ERROR", err)
+			}
+
+			c.log.Info(ctx, "BUS: msg sent", "from", busMsg.FromID, "to", busMsg.ToID)
+		}
+	}()
 }
 
 func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
@@ -206,17 +272,69 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) sendMessage(from User, to User, msg inMessage) error {
+func (c *Chat) readMessageBus(ctx context.Context) (*nats.Msg, error) {
+	type response struct {
+		msg *nats.Msg
+		err error
+	}
+
+	ch := make(chan response, 1)
+
+	go func() {
+		msg, err := c.subscription.NextMsgWithContext(ctx)
+		if err != nil {
+			ch <- response{nil, err}
+		}
+		ch <- response{msg, nil}
+	}()
+
+	var resp response
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case resp = <-ch:
+		if resp.err != nil {
+			return nil, resp.err
+		}
+	}
+
+	return resp.msg, nil
+}
+
+func (c *Chat) sendMessage(from User, to User, msg string) error {
 	m := outMessage{
 		From: User{
 			ID:   from.ID,
 			Name: from.Name,
 		},
-		Msg: msg.Msg,
+		Msg: msg,
 	}
 
 	if err := to.Conn.WriteJSON(m); err != nil {
 		return fmt.Errorf("write message: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Chat) sendMessageBus(from User, inMsg inMessage) error {
+	busMsg := busMessage{
+		FromID:   from.ID,
+		FromName: from.Name,
+		ToID:     inMsg.ToID,
+		Msg:      inMsg.Msg,
+	}
+
+	d, err := json.Marshal(busMsg)
+	if err != nil {
+		return fmt.Errorf("send marshal message: %w", err)
+	}
+
+	_, err = c.js.Publish(c.subject, d)
+	if err != nil {
+		return fmt.Errorf("send publish: %w", err)
 	}
 
 	return nil
