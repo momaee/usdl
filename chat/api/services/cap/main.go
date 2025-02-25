@@ -21,9 +21,10 @@ import (
 )
 
 /*
-	CAP <-> CAP communication w/ NATS
-		- ON MY MACHINE
 	Refactor client
+	NATS Question
+		- Handling Ack/Nak
+		- Not receiving our own messages
 */
 
 var build = "develop"
