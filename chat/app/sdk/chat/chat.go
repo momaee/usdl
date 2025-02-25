@@ -58,6 +58,14 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		return nil, fmt.Errorf("nats add js: %w", err)
 	}
 
+	_, err = js.AddConsumer(subject, &nats.ConsumerConfig{
+		Durable:   "durable-consumer",
+		AckPolicy: nats.AckExplicitPolicy,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("nats add consumer: %w", err)
+	}
+
 	sub, err := js.SubscribeSync(subject)
 	if err != nil {
 		return nil, fmt.Errorf("nats subscription: %w", err)
@@ -303,8 +311,10 @@ func (c *Chat) readMessageBus(ctx context.Context) (*nats.Msg, error) {
 		if resp.err != nil {
 			return nil, resp.err
 		}
+	}
 
-		resp.msg.Ack()
+	if err := resp.msg.Ack(); err != nil {
+		return nil, fmt.Errorf("ack message: %w", err)
 	}
 
 	return resp.msg, nil
