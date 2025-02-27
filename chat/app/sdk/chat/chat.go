@@ -41,19 +41,19 @@ type Chat struct {
 	js       jetstream.JetStream
 	stream   jetstream.Stream
 	consumer jetstream.Consumer
-	id       string
+	capID    uuid.UUID
 	subject  string
 	users    Users
 }
 
 // New creates a new chat support.
-func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Chat, error) {
+func New(log *logger.Logger, conn *nats.Conn, subject string, users Users, capID uuid.UUID) (*Chat, error) {
+	ctx := context.TODO()
+
 	js, err := jetstream.New(conn)
 	if err != nil {
-		return nil, fmt.Errorf("nats create js: %w", err)
+		return nil, fmt.Errorf("nats new js: %w", err)
 	}
-
-	ctx := context.Background()
 
 	// js.DeleteStream(ctx, subject)
 
@@ -63,18 +63,16 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		MaxAge:   24 * time.Hour,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("nats add js: %w", err)
+		return nil, fmt.Errorf("nats create js: %w", err)
 	}
 
-	id := "b243072d-453c-4825-865a-f5f2994de643" //uuid.NewString()
-
 	c1, err := s1.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		Durable:   id,
-		AckPolicy: jetstream.AckExplicitPolicy,
-		//DeliverPolicy: jetstream.DeliverNewPolicy,
+		Durable:       capID.String(),
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		DeliverPolicy: jetstream.DeliverNewPolicy,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("nats add consumer: %w", err)
+		return nil, fmt.Errorf("nats create consumer: %w", err)
 	}
 
 	c := Chat{
@@ -82,7 +80,7 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		js:       js,
 		stream:   s1,
 		consumer: c1,
-		id:       id,
+		capID:    capID,
 		subject:  subject,
 		users:    users,
 	}
@@ -93,12 +91,6 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 	c.ping(maxWait)
 
 	return &c, nil
-}
-
-// Shutdown cleans up the chat system.
-func (c *Chat) Shutdown(ctx context.Context) error {
-	//return c.stream.DeleteConsumer(ctx, c.id)
-	return nil
 }
 
 // Handshake performs the connection handshake protocol.
@@ -224,11 +216,6 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 			return true
 		}
 
-		if errors.Is(err, jetstream.ErrConsumerDeleted) {
-			c.log.Info(ctx, "chat-isCriticalError", "status", "nats consumer deleted")
-			return true
-		}
-
 		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
 		return false
 	}
@@ -250,6 +237,10 @@ func (c *Chat) listenBus() {
 			var busMsg busMessage
 			if err := json.Unmarshal(msg.Data(), &busMsg); err != nil {
 				c.log.Info(ctx, "bus-unmarshal", "ERROR", err)
+				continue
+			}
+
+			if busMsg.CapID == c.capID {
 				continue
 			}
 
@@ -370,6 +361,7 @@ func (c *Chat) sendMessage(from User, to User, msg string) error {
 
 func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg inMessage) error {
 	busMsg := busMessage{
+		CapID:    c.capID,
 		FromID:   from.ID,
 		FromName: from.Name,
 		ToID:     inMsg.ToID,
