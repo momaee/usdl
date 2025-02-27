@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // Set of error variables.
@@ -36,23 +37,25 @@ type Users interface {
 
 // Chat represents a chat support.
 type Chat struct {
-	log          *logger.Logger
-	js           nats.JetStreamContext
-	subscription *nats.Subscription
-	subject      string
-	users        Users
+	log      *logger.Logger
+	js       jetstream.JetStream
+	stream   jetstream.Stream
+	consumer jetstream.Consumer
+	id       string
+	subject  string
+	users    Users
 }
 
 // New creates a new chat support.
 func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Chat, error) {
-	js, err := conn.JetStream()
+	js, err := jetstream.New(conn)
 	if err != nil {
 		return nil, fmt.Errorf("nats create js: %w", err)
 	}
 
-	// js.DeleteStream(subject)
+	ctx := context.Background()
 
-	_, err = js.AddStream(&nats.StreamConfig{
+	s1, err := js.CreateStream(ctx, jetstream.StreamConfig{
 		Name:     subject,
 		Subjects: []string{subject},
 	})
@@ -60,25 +63,25 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 		return nil, fmt.Errorf("nats add js: %w", err)
 	}
 
-	_, err = js.AddConsumer(subject, &nats.ConsumerConfig{
-		Durable:   "durable-consumer",
-		AckPolicy: nats.AckExplicitPolicy,
+	id := uuid.NewString()
+
+	c1, err := s1.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+		Durable:   id,
+		AckPolicy: jetstream.AckExplicitPolicy,
+		//DeliverPolicy: jetstream.DeliverNewPolicy,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("nats add consumer: %w", err)
 	}
 
-	sub, err := js.SubscribeSync(subject, nats.DeliverNew())
-	if err != nil {
-		return nil, fmt.Errorf("nats subscription: %w", err)
-	}
-
 	c := Chat{
-		log:          log,
-		js:           js,
-		subscription: sub,
-		subject:      subject,
-		users:        users,
+		log:      log,
+		js:       js,
+		stream:   s1,
+		consumer: c1,
+		id:       id,
+		subject:  subject,
+		users:    users,
 	}
 
 	c.listenBus()
@@ -87,6 +90,11 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 	c.ping(maxWait)
 
 	return &c, nil
+}
+
+// Shutdown cleans up the chat system.
+func (c *Chat) Shutdown(ctx context.Context) error {
+	return c.stream.DeleteConsumer(ctx, c.id)
 }
 
 // Handshake performs the connection handshake protocol.
@@ -167,7 +175,7 @@ func (c *Chat) Listen(ctx context.Context, from User) {
 			switch {
 			case errors.Is(err, ErrNotExists):
 				c.log.Info(ctx, "loc-retrieve", "status", "user not found, sending over bus")
-				if err := c.sendMessageBus(from, inMsg); err != nil {
+				if err := c.sendMessageBus(ctx, from, inMsg); err != nil {
 					c.log.Info(ctx, "loc-bussend", "ERROR", err)
 				}
 
@@ -231,7 +239,7 @@ func (c *Chat) listenBus() {
 			}
 
 			var busMsg busMessage
-			if err := json.Unmarshal(msg.Data, &busMsg); err != nil {
+			if err := json.Unmarshal(msg.Data(), &busMsg); err != nil {
 				c.log.Info(ctx, "bus-unmarshal", "ERROR", err)
 				continue
 			}
@@ -300,16 +308,16 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) readMessageBus(ctx context.Context) (*nats.Msg, error) {
+func (c *Chat) readMessageBus(ctx context.Context) (jetstream.Msg, error) {
 	type response struct {
-		msg *nats.Msg
+		msg jetstream.Msg
 		err error
 	}
 
 	ch := make(chan response, 1)
 
 	go func() {
-		msg, err := c.subscription.NextMsgWithContext(ctx)
+		msg, err := c.consumer.Next()
 		if err != nil {
 			ch <- response{nil, err}
 		}
@@ -351,7 +359,7 @@ func (c *Chat) sendMessage(from User, to User, msg string) error {
 	return nil
 }
 
-func (c *Chat) sendMessageBus(from User, inMsg inMessage) error {
+func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg inMessage) error {
 	busMsg := busMessage{
 		FromID:   from.ID,
 		FromName: from.Name,
@@ -364,7 +372,7 @@ func (c *Chat) sendMessageBus(from User, inMsg inMessage) error {
 		return fmt.Errorf("send marshal message: %w", err)
 	}
 
-	_, err = c.js.Publish(c.subject, d)
+	_, err = c.js.Publish(ctx, c.subject, d)
 	if err != nil {
 		return fmt.Errorf("send publish: %w", err)
 	}

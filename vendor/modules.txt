@@ -15,6 +15,8 @@ github.com/klauspost/compress/flate
 github.com/nats-io/nats.go
 github.com/nats-io/nats.go/encoders/builtin
 github.com/nats-io/nats.go/internal/parser
+github.com/nats-io/nats.go/internal/syncx
+github.com/nats-io/nats.go/jetstream
 github.com/nats-io/nats.go/util
 # github.com/nats-io/nkeys v0.4.9
 ## explicit; go 1.20
@@ -34,3 +36,13 @@ golang.org/x/crypto/salsa20/salsa
 # golang.org/x/sys v0.28.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
+# golang.org/x/text v0.21.0
+## explicit; go 1.18
+golang.org/x/text/cases
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/language
+golang.org/x/text/transform
+golang.org/x/text/unicode/norm
