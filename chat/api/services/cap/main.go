@@ -25,9 +25,8 @@ import (
 
 /*
 	Refactor client
-	NATS Question
-		- Handling Ack/Nak
-		- Not receiving our own messages
+	Decentralized Authentication
+	Encryption Peer2Peer
 */
 
 var build = "develop"
