@@ -55,15 +55,18 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 
 	ctx := context.Background()
 
+	// js.DeleteStream(ctx, subject)
+
 	s1, err := js.CreateStream(ctx, jetstream.StreamConfig{
 		Name:     subject,
 		Subjects: []string{subject},
+		MaxAge:   24 * time.Hour,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("nats add js: %w", err)
 	}
 
-	id := uuid.NewString()
+	id := "b243072d-453c-4825-865a-f5f2994de643" //uuid.NewString()
 
 	c1, err := s1.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Durable:   id,
@@ -94,7 +97,8 @@ func New(log *logger.Logger, conn *nats.Conn, subject string, users Users) (*Cha
 
 // Shutdown cleans up the chat system.
 func (c *Chat) Shutdown(ctx context.Context) error {
-	return c.stream.DeleteConsumer(ctx, c.id)
+	//return c.stream.DeleteConsumer(ctx, c.id)
+	return nil
 }
 
 // Handshake performs the connection handshake protocol.
@@ -217,6 +221,11 @@ func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
 
 		if errors.Is(err, nats.ErrConnectionClosed) {
 			c.log.Info(ctx, "chat-isCriticalError", "status", "nats connection closed")
+			return true
+		}
+
+		if errors.Is(err, jetstream.ErrConsumerDeleted) {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "nats consumer deleted")
 			return true
 		}
 
