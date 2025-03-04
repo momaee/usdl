@@ -24,7 +24,15 @@ import (
 )
 
 /*
+	Off Screen
+		Show ClientID in the client (hardcoded)
+		Enter Key working for submit
+
 	Refactor client
+		ClientID File we will add a ID and Name
+			If file doesn't exist, create it
+			Remove use of UUID
+
 	Decentralized Authentication
 	Encryption Peer2Peer
 */
