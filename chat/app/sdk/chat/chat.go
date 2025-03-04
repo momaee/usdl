@@ -186,7 +186,7 @@ func (c *Chat) Listen(ctx context.Context, from User) {
 			c.log.Info(ctx, "loc-send", "ERROR", err)
 		}
 
-		c.log.Info(ctx, "LOC: msg sent", "from", from.ID, "to", inMsg.ToID)
+		c.log.Info(ctx, "LOC: msg sent over web socket", "from", from.ID, "to", inMsg.ToID)
 	}
 }
 
@@ -259,7 +259,9 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 			c.log.Info(ctx, "bus-send", "ERROR", err)
 		}
 
-		c.log.Info(ctx, "BUS: msg sent", "from", busMsg.FromID, "to", busMsg.ToID)
+		msg.Ack()
+
+		c.log.Info(ctx, "BUS: msg sent over web socket", "from", busMsg.FromID, "to", busMsg.ToID)
 	}
 
 	return f
