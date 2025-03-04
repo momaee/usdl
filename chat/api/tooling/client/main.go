@@ -34,11 +34,13 @@ func main() {
 
 	app := chat.NewApp(client)
 
+	name := app.FindName(ID.String())
+
 	writeText := func(name string, msg string) {
 		app.WriteText(name, msg)
 	}
 
-	if err := client.Handshake(writeText); err != nil {
+	if err := client.Handshake(name, writeText); err != nil {
 		fmt.Printf("Error: %s\n", err)
 		os.Exit(1)
 	}

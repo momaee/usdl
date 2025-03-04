@@ -147,8 +147,8 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 	return usr, nil
 }
 
-// Listen waits for messages from users.
-func (c *Chat) Listen(ctx context.Context, from User) {
+// ListenSocket waits for messages from users.
+func (c *Chat) ListenSocket(ctx context.Context, from User) {
 	for {
 		msg, err := c.readMessage(ctx, from)
 		if err != nil {
@@ -235,7 +235,7 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 			return
 		}
 
-		c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg)
+		c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
 
 		to, err := c.users.Retrieve(ctx, busMsg.ToID)
 		if err != nil {

@@ -101,6 +101,17 @@ func (a *App) Run() error {
 	return a.app.SetRoot(a.flex, true).EnableMouse(true).Run()
 }
 
+func (a *App) FindName(id string) string {
+	for i := 0; i < a.list.GetItemCount(); i++ {
+		name, toIDStr := a.list.GetItemText(i)
+		if id == toIDStr {
+			return name
+		}
+	}
+
+	return ""
+}
+
 func (a *App) ButtonHandler() {
 	_, toIDStr := a.list.GetItemText(a.list.GetCurrentItem())
 	to, err := uuid.Parse(toIDStr)

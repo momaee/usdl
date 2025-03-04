@@ -50,7 +50,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Handshake(writeText WriteText) error {
+func (c *Client) Handshake(name string, writeText WriteText) error {
 	conn, _, err := websocket.DefaultDialer.Dial(c.url, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -76,7 +76,7 @@ func (c *Client) Handshake(writeText WriteText) error {
 		Name string
 	}{
 		ID:   c.id,
-		Name: "Bill Kennedy",
+		Name: name,
 	}
 
 	data, err := json.Marshal(user)
