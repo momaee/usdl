@@ -4,17 +4,50 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
+	"github.com/ardanlabs/usdl/chat/api/tooling/client/chat"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
+const url = "ws://localhost:3000/connect"
+
 func main() {
-	if err := hack1(); err != nil {
-		log.Fatal(err)
+	users := []uuid.UUID{
+		uuid.MustParse("8ce5af7a-788c-4c83-8e70-4500b775b359"),
+		uuid.MustParse("8a45ec7a-273c-430a-9d90-ac30f94000cd"),
+	}
+
+	var ID uuid.UUID
+
+	switch os.Args[1] {
+	case "0":
+		ID = users[0]
+	case "1":
+		ID = users[1]
+	}
+
+	client := chat.NewClient(ID, url)
+	defer client.Close()
+
+	app := chat.NewApp(client)
+
+	writeText := func(msg string) {
+		app.WriteText(msg)
+	}
+
+	if err := client.Handshake(writeText); err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+
+	app.WriteText("THIS IS A TEST OF THIS FUNCTIONALITY")
+
+	if err := app.Run(); err != nil {
+		fmt.Printf("Error running app: %s\n", err)
+		os.Exit(1)
 	}
 }
 
