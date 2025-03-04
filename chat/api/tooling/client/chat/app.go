@@ -39,7 +39,7 @@ func NewApp(client *Client) *App {
 		})
 
 	textView.SetBorder(true)
-	textView.SetTitle("chat")
+	textView.SetTitle("Placeholder for ID")
 
 	// -------------------------------------------------------------------------
 
@@ -47,7 +47,6 @@ func NewApp(client *Client) *App {
 	button.SetStyle(tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGreen).Bold(true))
 	button.SetActivatedStyle(tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGreen).Bold(true))
 	button.SetBorder(true)
-	button.SetBorderPadding(0, 1, 0, 0)
 	button.SetBorderColor(tcell.ColorGreen)
 
 	// -------------------------------------------------------------------------
@@ -93,6 +92,15 @@ func NewApp(client *Client) *App {
 	}
 
 	button.SetSelectedFunc(a.ButtonHandler)
+
+	textArea.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEnter:
+			a.ButtonHandler()
+			return nil
+		}
+		return event
+	})
 
 	return &a
 }
