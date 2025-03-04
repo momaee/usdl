@@ -124,7 +124,7 @@ func (c *Client) Send(to uuid.UUID, msg string) error {
 	}
 
 	inMsg := inMessage{
-		ToID: uuid.Nil,
+		ToID: to,
 		Msg:  msg,
 	}
 
