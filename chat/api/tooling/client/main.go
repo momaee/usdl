@@ -34,8 +34,8 @@ func main() {
 
 	app := chat.NewApp(client)
 
-	writeText := func(msg string) {
-		app.WriteText(msg)
+	writeText := func(name string, msg string) {
+		app.WriteText(name, msg)
 	}
 
 	if err := client.Handshake(writeText); err != nil {
@@ -43,7 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	app.WriteText("THIS IS A TEST OF THIS FUNCTIONALITY")
+	app.WriteText("system", "CONNECTED")
 
 	if err := app.Run(); err != nil {
 		fmt.Printf("Error running app: %s\n", err)

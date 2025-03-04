@@ -105,7 +105,7 @@ func (a *App) ButtonHandler() {
 	_, toIDStr := a.list.GetItemText(a.list.GetCurrentItem())
 	to, err := uuid.Parse(toIDStr)
 	if err != nil {
-		a.WriteText(fmt.Sprintf("Error parsing UUID: %s", err))
+		a.WriteText("system", fmt.Sprintf("Error parsing UUID: %s", err))
 		return
 	}
 
@@ -115,15 +115,16 @@ func (a *App) ButtonHandler() {
 	}
 
 	if err := a.client.Send(to, msg); err != nil {
-		a.WriteText(fmt.Sprintf("Error sending message: %s", err))
+		a.WriteText("system", fmt.Sprintf("Error sending message: %s", err))
 		return
 	}
 
 	a.textArea.SetText("", false)
+	a.WriteText("You", msg)
 }
 
-func (a *App) WriteText(msg string) {
+func (a *App) WriteText(name string, msg string) {
 	a.textView.ScrollToEnd()
 	fmt.Fprintln(a.textView, "-----")
-	fmt.Fprintln(a.textView, msg)
+	fmt.Fprintln(a.textView, name+": "+msg)
 }

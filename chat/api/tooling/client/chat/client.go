@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type WriteText func(msg string)
+type WriteText func(name string, msg string)
 
 // =============================================================================
 
@@ -101,17 +101,17 @@ func (c *Client) Handshake(writeText WriteText) error {
 		for {
 			_, msg, err = conn.ReadMessage()
 			if err != nil {
-				writeText(fmt.Sprintf("read: %s", err))
+				writeText("system", fmt.Sprintf("read: %s", err))
 				return
 			}
 
 			var outMsg outMessage
 			if err := json.Unmarshal(msg, &outMsg); err != nil {
-				writeText(fmt.Sprintf("unmarshal: %s", err))
+				writeText("system", fmt.Sprintf("unmarshal: %s", err))
 				return
 			}
 
-			writeText(outMsg.Msg)
+			writeText(outMsg.From.Name, outMsg.Msg)
 		}
 	}()
 
