@@ -89,13 +89,16 @@ func (c *Config) LookupContact(id string) (User, error) {
 	return u, nil
 }
 
-func (c *Config) AddContact(user User) error {
+func (c *Config) AddContact(id string, name string) error {
 	doc, err := readConfig(c.fileName)
 	if err != nil {
 		return fmt.Errorf("config read: %w", err)
 	}
 
-	doc.Contacts = append(doc.Contacts, docUser(user))
+	doc.Contacts = append(doc.Contacts, docUser(User{
+		ID:   id,
+		Name: name,
+	}))
 
 	writeConfig(c.fileName, doc)
 

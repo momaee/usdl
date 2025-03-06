@@ -114,16 +114,16 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 			}
 
 			user, err := c.cfg.LookupContact(outMsg.From.ID)
-			if err != nil {
-				if err := c.cfg.AddContact(user); err != nil {
+			switch {
+			case err != nil:
+				if err := c.cfg.AddContact(outMsg.From.ID, outMsg.From.Name); err != nil {
 					uiWrite("system", fmt.Sprintf("add contact: %s", err))
 					return
 				}
 
 				uiUpdateContact(user)
-			}
 
-			if err == nil {
+			default:
 				outMsg.From.Name = user.Name
 			}
 

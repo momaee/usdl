@@ -150,6 +150,6 @@ func (a *App) WriteText(name string, msg string) {
 }
 
 func (a *App) UpdateContact(id string, name string) {
-	shortcut := rune(a.list.GetItemCount() + 48)
+	shortcut := rune(a.list.GetItemCount() + 49)
 	a.list.AddItem(name, id, shortcut, nil)
 }
