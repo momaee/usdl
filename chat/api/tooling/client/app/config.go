@@ -90,10 +90,15 @@ func (c *Config) LookupContact(id string) (User, error) {
 }
 
 func (c *Config) AddContact(user User) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	doc, err := readConfig(c.fileName)
+	if err != nil {
+		return fmt.Errorf("config read: %w", err)
+	}
 
-	// ADD USER TO CONTACTS
+	doc.Contacts = append(doc.Contacts, docUser(user))
+
+	writeConfig(c.fileName, doc)
+
 	return nil
 }
 
@@ -124,6 +129,25 @@ func readConfig(fileName string) (document, error) {
 	return doc, nil
 }
 
+func writeConfig(fileName string, doc document) error {
+	f, err := os.Create(fileName)
+	if err != nil {
+		return fmt.Errorf("config file create: %w", err)
+	}
+	defer f.Close()
+
+	jsonDoc, err := json.MarshalIndent(doc, "", "    ")
+	if err != nil {
+		return fmt.Errorf("config file marshal: %w", err)
+	}
+
+	if _, err := f.Write(jsonDoc); err != nil {
+		return fmt.Errorf("config file write: %w", err)
+	}
+
+	return nil
+}
+
 func createConfig(fileName string) (document, error) {
 	filePath := filepath.Dir(fileName)
 
@@ -140,6 +164,7 @@ func createConfig(fileName string) (document, error) {
 			ID:   fmt.Sprintf("%d", rand.IntN(99999)),
 			Name: "Anonymous",
 		},
+		Contacts: []docUser{},
 	}
 
 	jsonDoc, err := json.MarshalIndent(doc, "", "    ")

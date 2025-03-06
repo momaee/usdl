@@ -30,6 +30,8 @@ import (
 			Remove use of UUID
 		Maintain a list of people you chat with
 
+	Keep separate from the chat history
+
 	Decentralized Authentication
 	Encryption Peer2Peer
 */

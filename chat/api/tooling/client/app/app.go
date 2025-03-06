@@ -30,8 +30,8 @@ func New(client *Client, cfg *Config) *App {
 
 	users := cfg.Contacts()
 	for i, user := range users {
-		id := rune(i + 49)
-		list.AddItem(user.Name, user.ID, id, nil)
+		shortcut := rune(i + 49)
+		list.AddItem(user.Name, user.ID, shortcut, nil)
 	}
 
 	// -------------------------------------------------------------------------
@@ -147,4 +147,9 @@ func (a *App) WriteText(name string, msg string) {
 	a.textView.ScrollToEnd()
 	fmt.Fprintln(a.textView, "-----")
 	fmt.Fprintln(a.textView, name+": "+msg)
+}
+
+func (a *App) UpdateContact(id string, name string) {
+	shortcut := rune(a.list.GetItemCount() + 48)
+	a.list.AddItem(name, id, shortcut, nil)
 }

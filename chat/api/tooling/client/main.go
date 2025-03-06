@@ -31,19 +31,23 @@ func run() error {
 	client := app.NewClient(id, url, cfg)
 	defer client.Close()
 
-	app := app.New(client, cfg)
+	a := app.New(client, cfg)
 
-	uiScreenWrite := func(name string, msg string) {
-		app.WriteText(name, msg)
+	uiWrite := func(name string, msg string) {
+		a.WriteText(name, msg)
 	}
 
-	if err := client.Handshake(name, uiScreenWrite); err != nil {
+	uiUpdateContact := func(user app.User) {
+		a.UpdateContact(user.ID, user.Name)
+	}
+
+	if err := client.Handshake(name, uiWrite, uiUpdateContact); err != nil {
 		return fmt.Errorf("handshake: %w", err)
 	}
 
-	app.WriteText("system", "CONNECTED")
+	a.WriteText("system", "CONNECTED")
 
-	if err := app.Run(); err != nil {
+	if err := a.Run(); err != nil {
 		return fmt.Errorf("run: %w", err)
 	}
 

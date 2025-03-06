@@ -8,6 +8,7 @@ import (
 )
 
 type UIScreenWrite func(name string, msg string)
+type UIUpdateContact func(user User)
 
 // =============================================================================
 
@@ -51,7 +52,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Handshake(name string, write UIScreenWrite) error {
+func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact UIUpdateContact) error {
 	conn, _, err := websocket.DefaultDialer.Dial(c.url, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -102,22 +103,31 @@ func (c *Client) Handshake(name string, write UIScreenWrite) error {
 		for {
 			_, msg, err = conn.ReadMessage()
 			if err != nil {
-				write("system", fmt.Sprintf("read: %s", err))
+				uiWrite("system", fmt.Sprintf("read: %s", err))
 				return
 			}
 
 			var outMsg outMessage
 			if err := json.Unmarshal(msg, &outMsg); err != nil {
-				write("system", fmt.Sprintf("unmarshal: %s", err))
+				uiWrite("system", fmt.Sprintf("unmarshal: %s", err))
 				return
 			}
 
 			user, err := c.cfg.LookupContact(outMsg.From.ID)
+			if err != nil {
+				if err := c.cfg.AddContact(user); err != nil {
+					uiWrite("system", fmt.Sprintf("add contact: %s", err))
+					return
+				}
+
+				uiUpdateContact(user)
+			}
+
 			if err == nil {
 				outMsg.From.Name = user.Name
 			}
 
-			write(outMsg.From.Name, outMsg.Msg)
+			uiWrite(outMsg.From.Name, outMsg.Msg)
 		}
 	}()
 
