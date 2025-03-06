@@ -8,14 +8,14 @@ SHELL = $(if $(wildcard $(SHELL_PATH)),/bin/ash,/bin/bash)
 hack:
 	go run chat/api/tooling/hack/main.go
 
-chat-run:
+run-cap:
 	go run chat/api/services/cap/main.go | go run chat/api/tooling/logfmt/main.go
+
+run-client:
+	go run chat/api/tooling/client/main.go
 
 chat-test:
 	curl -i -X GET http://localhost:3000/test
-
-chat-client:
-	go run chat/api/tooling/client/main.go
 
 chat-docker:
 	docker pull nats:2.10
