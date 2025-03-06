@@ -44,7 +44,7 @@ func New(client *Client, cfg *Config) *App {
 		})
 
 	textView.SetBorder(true)
-	textView.SetTitle("Placeholder for ID")
+	textView.SetTitle(fmt.Sprintf("*** %s ***", cfg.User().ID))
 
 	// -------------------------------------------------------------------------
 
