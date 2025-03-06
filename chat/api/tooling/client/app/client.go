@@ -8,7 +8,7 @@ import (
 )
 
 type UIScreenWrite func(name string, msg string)
-type UIUpdateContact func(user User)
+type UIUpdateContact func(id string, name string)
 
 // =============================================================================
 
@@ -121,7 +121,7 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 					return
 				}
 
-				uiUpdateContact(user)
+				uiUpdateContact(outMsg.From.ID, outMsg.From.Name)
 
 			default:
 				outMsg.From.Name = user.Name

@@ -37,8 +37,8 @@ func run() error {
 		a.WriteText(name, msg)
 	}
 
-	uiUpdateContact := func(user app.User) {
-		a.UpdateContact(user.ID, user.Name)
+	uiUpdateContact := func(id string, name string) {
+		a.UpdateContact(id, name)
 	}
 
 	if err := client.Handshake(name, uiWrite, uiUpdateContact); err != nil {
