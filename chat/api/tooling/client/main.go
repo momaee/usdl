@@ -28,10 +28,10 @@ func run() error {
 	id := cfg.User().ID
 	name := cfg.User().Name
 
-	client := app.NewClient(id, url, cfg.Contacts())
+	client := app.NewClient(id, url)
 	defer client.Close()
 
-	app := app.New(client)
+	app := app.New(client, cfg)
 
 	log := func(name string, msg string) {
 		app.WriteText(name, msg)
