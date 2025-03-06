@@ -25,15 +25,16 @@ import (
 
 /*
 	Refactor client
-		ClientID File we will add a ID and Name
-			If file doesn't exist, create it
-			Remove use of UUID
-		Maintain a list of people you chat with
-
-	Keep separate from the chat history
+		Keep separate from the chat history
+		Show marker for new message
+		MAYBE: Save chat history
 
 	Decentralized Authentication
 	Encryption Peer2Peer
+		Sharing the public key
+	Transient Stream
+		Send File
+	Group Chat
 */
 
 var build = "develop"
