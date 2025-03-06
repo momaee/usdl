@@ -9,7 +9,7 @@ import (
 
 // User represents a user in the chat system.
 type User struct {
-	ID       uuid.UUID       `json:"id"`
+	ID       string          `json:"id"`
 	Name     string          `json:"name"`
 	LastPing time.Time       `json:"lastPing"`
 	LastPong time.Time       `json:"lastPong"`
@@ -24,8 +24,8 @@ type Connection struct {
 }
 
 type inMessage struct {
-	ToID uuid.UUID `json:"toID"`
-	Msg  string    `json:"msg"`
+	ToID string `json:"toID"`
+	Msg  string `json:"msg"`
 }
 
 type outMessage struct {
@@ -35,8 +35,8 @@ type outMessage struct {
 
 type busMessage struct {
 	CapID    uuid.UUID `json:"capID"`
-	FromID   uuid.UUID `json:"fromID"`
+	FromID   string    `json:"fromID"`
 	FromName string    `json:"fromName"`
-	ToID     uuid.UUID `json:"toID"`
+	ToID     string    `json:"toID"`
 	Msg      string    `json:"msg"`
 }

@@ -3,6 +3,7 @@
 #
 
 chat/zarf/cap.id
+chat/zarf/config.json
 
 # Binaries for programs and plugins
 *.exe

@@ -7,13 +7,12 @@ import (
 
 	"github.com/ardanlabs/usdl/chat/app/sdk/chat"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
-	"github.com/google/uuid"
 )
 
 // Users provides user storage management.
 type Users struct {
 	log     *logger.Logger
-	users   map[uuid.UUID]chat.User
+	users   map[string]chat.User
 	muUsers sync.RWMutex
 }
 
@@ -21,7 +20,7 @@ type Users struct {
 func New(log *logger.Logger) *Users {
 	u := Users{
 		log:   log,
-		users: make(map[uuid.UUID]chat.User),
+		users: make(map[string]chat.User),
 	}
 
 	return &u
@@ -44,7 +43,7 @@ func (u *Users) Add(ctx context.Context, usr chat.User) error {
 }
 
 // UpdateLastPing updates a user value's ping date/time.
-func (u *Users) UpdateLastPing(ctx context.Context, userID uuid.UUID) error {
+func (u *Users) UpdateLastPing(ctx context.Context, userID string) error {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -62,7 +61,7 @@ func (u *Users) UpdateLastPing(ctx context.Context, userID uuid.UUID) error {
 }
 
 // UpdateLastPong updates a user value's pong date/time.
-func (u *Users) UpdateLastPong(ctx context.Context, userID uuid.UUID) (chat.User, error) {
+func (u *Users) UpdateLastPong(ctx context.Context, userID string) (chat.User, error) {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -80,7 +79,7 @@ func (u *Users) UpdateLastPong(ctx context.Context, userID uuid.UUID) (chat.User
 }
 
 // Remove removes a user from the storage.
-func (u *Users) Remove(ctx context.Context, userID uuid.UUID) {
+func (u *Users) Remove(ctx context.Context, userID string) {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -97,11 +96,11 @@ func (u *Users) Remove(ctx context.Context, userID uuid.UUID) {
 
 // Connections returns all the know users with their connections. A connection
 // that is not valid shouldn't be used.
-func (u *Users) Connections() map[uuid.UUID]chat.Connection {
+func (u *Users) Connections() map[string]chat.Connection {
 	u.muUsers.RLock()
 	defer u.muUsers.RUnlock()
 
-	m := make(map[uuid.UUID]chat.Connection)
+	m := make(map[string]chat.Connection)
 	for id, usr := range u.users {
 		m[id] = chat.Connection{
 			Conn:     usr.Conn,
@@ -114,7 +113,7 @@ func (u *Users) Connections() map[uuid.UUID]chat.Connection {
 }
 
 // Retrieve retrieves a user from the storage.
-func (u *Users) Retrieve(ctx context.Context, userID uuid.UUID) (chat.User, error) {
+func (u *Users) Retrieve(ctx context.Context, userID string) (chat.User, error) {
 	u.muUsers.RLock()
 	defer u.muUsers.RUnlock()
 

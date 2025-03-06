@@ -1,25 +1,24 @@
-package chat
+package app
 
 import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
-type WriteText func(name string, msg string)
+type Log func(name string, msg string)
 
 // =============================================================================
 
 type inMessage struct {
-	ToID uuid.UUID `json:"toID"`
-	Msg  string    `json:"msg"`
+	ToID string `json:"toID"`
+	Msg  string `json:"msg"`
 }
 
 type user struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type outMessage struct {
@@ -30,12 +29,12 @@ type outMessage struct {
 // =============================================================================
 
 type Client struct {
-	id   uuid.UUID
+	id   string
 	url  string
 	conn *websocket.Conn
 }
 
-func NewClient(id uuid.UUID, url string) *Client {
+func NewClient(id string, url string) *Client {
 	return &Client{
 		id:  id,
 		url: url,
@@ -50,7 +49,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Handshake(name string, writeText WriteText) error {
+func (c *Client) Handshake(name string, log Log) error {
 	conn, _, err := websocket.DefaultDialer.Dial(c.url, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -72,7 +71,7 @@ func (c *Client) Handshake(name string, writeText WriteText) error {
 	// -------------------------------------------------------------------------
 
 	user := struct {
-		ID   uuid.UUID
+		ID   string
 		Name string
 	}{
 		ID:   c.id,
@@ -101,24 +100,24 @@ func (c *Client) Handshake(name string, writeText WriteText) error {
 		for {
 			_, msg, err = conn.ReadMessage()
 			if err != nil {
-				writeText("system", fmt.Sprintf("read: %s", err))
+				log("system", fmt.Sprintf("read: %s", err))
 				return
 			}
 
 			var outMsg outMessage
 			if err := json.Unmarshal(msg, &outMsg); err != nil {
-				writeText("system", fmt.Sprintf("unmarshal: %s", err))
+				log("system", fmt.Sprintf("unmarshal: %s", err))
 				return
 			}
 
-			writeText(outMsg.From.Name, outMsg.Msg)
+			log(outMsg.From.Name, outMsg.Msg)
 		}
 	}()
 
 	return nil
 }
 
-func (c *Client) Send(to uuid.UUID, msg string) error {
+func (c *Client) Send(to string, msg string) error {
 	if c.conn == nil {
 		return fmt.Errorf("no connection")
 	}

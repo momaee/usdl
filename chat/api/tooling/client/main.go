@@ -1,192 +1,51 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 
-	"github.com/ardanlabs/usdl/chat/api/tooling/client/chat"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
+	"github.com/ardanlabs/usdl/chat/api/tooling/client/app"
 )
 
-const url = "ws://localhost:3000/connect"
+const (
+	url            = "ws://localhost:3000/connect"
+	configFilePath = "chat/zarf/"
+)
 
 func main() {
-	users := []uuid.UUID{
-		uuid.MustParse("8ce5af7a-788c-4c83-8e70-4500b775b359"),
-		uuid.MustParse("8a45ec7a-273c-430a-9d90-ac30f94000cd"),
+	if err := run(); err != nil {
+		fmt.Printf("Error: %s\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	cfg, err := app.NewConfig(configFilePath)
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
 	}
 
-	var ID uuid.UUID
+	id := cfg.User().ID
+	name := cfg.User().Name
 
-	switch os.Args[1] {
-	case "0":
-		ID = users[0]
-	case "1":
-		ID = users[1]
-	}
-
-	client := chat.NewClient(ID, url)
+	client := app.NewClient(id, url, cfg.Contacts())
 	defer client.Close()
 
-	app := chat.NewApp(client)
+	app := app.New(client)
 
-	name := app.FindName(ID.String())
-
-	writeText := func(name string, msg string) {
+	log := func(name string, msg string) {
 		app.WriteText(name, msg)
 	}
 
-	if err := client.Handshake(name, writeText); err != nil {
-		fmt.Printf("Error: %s\n", err)
-		os.Exit(1)
+	if err := client.Handshake(name, log); err != nil {
+		return fmt.Errorf("handshake: %w", err)
 	}
 
 	app.WriteText("system", "CONNECTED")
 
 	if err := app.Run(); err != nil {
-		fmt.Printf("Error running app: %s\n", err)
-		os.Exit(1)
-	}
-}
-
-func hack1() error {
-	const url = "ws://localhost:3000/connect"
-	req := make(http.Header)
-
-	users := []uuid.UUID{
-		uuid.MustParse("8ce5af7a-788c-4c83-8e70-4500b775b359"),
-		uuid.MustParse("8a45ec7a-273c-430a-9d90-ac30f94000cd"),
+		return fmt.Errorf("run: %w", err)
 	}
 
-	var ID uuid.UUID
-
-	switch os.Args[1] {
-	case "0":
-		ID = users[0]
-	case "1":
-		ID = users[1]
-	}
-
-	fmt.Println("ID:", ID)
-
-	socket, _, err := websocket.DefaultDialer.Dial(url, req)
-	if err != nil {
-		return fmt.Errorf("dial: %w", err)
-	}
-
-	defer socket.Close()
-
-	// -------------------------------------------------------------------------
-
-	_, msg, err := socket.ReadMessage()
-	if err != nil {
-		return fmt.Errorf("read: %w", err)
-	}
-
-	if string(msg) != "HELLO" {
-		return fmt.Errorf("unexpected message: %s", msg)
-	}
-
-	// -------------------------------------------------------------------------
-
-	user := struct {
-		ID   uuid.UUID
-		Name string
-	}{
-		ID:   ID,
-		Name: "Bill Kennedy",
-	}
-
-	data, err := json.Marshal(user)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
-	}
-
-	if err := socket.WriteMessage(websocket.TextMessage, data); err != nil {
-		return fmt.Errorf("write: %w", err)
-	}
-
-	// -------------------------------------------------------------------------
-
-	_, msg, err = socket.ReadMessage()
-	if err != nil {
-		return fmt.Errorf("read: %w", err)
-	}
-
-	fmt.Println(string(msg))
-
-	// -------------------------------------------------------------------------
-
-	go func() {
-		for {
-			_, msg, err = socket.ReadMessage()
-			if err != nil {
-				fmt.Printf("read: %s\n", err)
-				return
-			}
-
-			var outMsg outMessage
-			if err := json.Unmarshal(msg, &outMsg); err != nil {
-				fmt.Printf("Unmarshal: %s\n", err)
-				return
-			}
-
-			fmt.Printf("\n%s\n", outMsg.Msg)
-		}
-	}()
-
-	// -------------------------------------------------------------------------
-
-	for {
-		fmt.Print("\n\n")
-		fmt.Print("message >")
-
-		reader := bufio.NewReader(os.Stdin)
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("read input: %w", err)
-		}
-
-		var to uuid.UUID
-
-		switch os.Args[1] {
-		case "0":
-			to = users[1]
-		case "1":
-			to = users[0]
-		}
-
-		inMsg := inMessage{
-			ToID: to,
-			Msg:  input,
-		}
-
-		data2, err := json.Marshal(inMsg)
-		if err != nil {
-			return fmt.Errorf("marshal: %w", err)
-		}
-
-		if err := socket.WriteMessage(websocket.TextMessage, data2); err != nil {
-			return fmt.Errorf("write: %w", err)
-		}
-	}
-}
-
-type inMessage struct {
-	ToID uuid.UUID `json:"toID"`
-	Msg  string    `json:"msg"`
-}
-
-type user struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
-}
-
-type outMessage struct {
-	From user   `json:"from"`
-	Msg  string `json:"msg"`
+	return nil
 }

@@ -1,10 +1,10 @@
-package chat
+// Package app provides client app support.
+package app
 
 import (
 	"fmt"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/google/uuid"
 	"github.com/rivo/tview"
 )
 
@@ -16,9 +16,10 @@ type App struct {
 	textArea *tview.TextArea
 	button   *tview.Button
 	client   *Client
+	cfg      *Config
 }
 
-func NewApp(client *Client) *App {
+func New(client *Client, cfg *Config) *App {
 	app := tview.NewApplication()
 
 	// -------------------------------------------------------------------------
@@ -26,8 +27,12 @@ func NewApp(client *Client) *App {
 	list := tview.NewList()
 	list.SetBorder(true)
 	list.SetTitle("Users")
-	list.AddItem("Bill Kennedy", "8ce5af7a-788c-4c83-8e70-4500b775b359", '1', nil)
-	list.AddItem("Kevin Ardan", "8a45ec7a-273c-430a-9d90-ac30f94000cd", '2', nil)
+
+	users := cfg.Contacts()
+	for i, user := range users {
+		id := rune(i + 49)
+		list.AddItem(user.Name, user.ID, id, nil)
+	}
 
 	// -------------------------------------------------------------------------
 
@@ -89,6 +94,7 @@ func NewApp(client *Client) *App {
 		textArea: textArea,
 		button:   button,
 		client:   client,
+		cfg:      cfg,
 	}
 
 	button.SetSelectedFunc(a.ButtonHandler)
@@ -110,7 +116,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) FindName(id string) string {
-	for i := 0; i < a.list.GetItemCount(); i++ {
+	for i := range a.list.GetItemCount() {
 		name, toIDStr := a.list.GetItemText(i)
 		if id == toIDStr {
 			return name
@@ -121,12 +127,7 @@ func (a *App) FindName(id string) string {
 }
 
 func (a *App) ButtonHandler() {
-	_, toIDStr := a.list.GetItemText(a.list.GetCurrentItem())
-	to, err := uuid.Parse(toIDStr)
-	if err != nil {
-		a.WriteText("system", fmt.Sprintf("Error parsing UUID: %s", err))
-		return
-	}
+	_, to := a.list.GetItemText(a.list.GetCurrentItem())
 
 	msg := a.textArea.GetText()
 	if msg == "" {

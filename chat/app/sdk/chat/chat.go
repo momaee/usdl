@@ -28,11 +28,11 @@ var (
 // Users defines the set of behavior for user management.
 type Users interface {
 	Add(ctx context.Context, usr User) error
-	UpdateLastPing(ctx context.Context, userID uuid.UUID) error
-	UpdateLastPong(ctx context.Context, userID uuid.UUID) (User, error)
-	Remove(ctx context.Context, userID uuid.UUID)
-	Connections() map[uuid.UUID]Connection
-	Retrieve(ctx context.Context, userID uuid.UUID) (User, error)
+	UpdateLastPing(ctx context.Context, userID string) error
+	UpdateLastPong(ctx context.Context, userID string) (User, error)
+	Remove(ctx context.Context, userID string)
+	Connections() map[string]Connection
+	Retrieve(ctx context.Context, userID string) (User, error)
 }
 
 // Chat represents a chat support.
@@ -340,7 +340,7 @@ func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg inMessage) e
 	return nil
 }
 
-func (c *Chat) pong(id uuid.UUID) func(appData string) error {
+func (c *Chat) pong(id string) func(appData string) error {
 	f := func(appData string) error {
 		ctx := web.SetTraceID(context.Background(), uuid.New())
 

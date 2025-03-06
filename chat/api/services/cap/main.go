@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -24,14 +24,11 @@ import (
 )
 
 /*
-	Off Screen
-		Show ClientID in the client (hardcoded)
-		Enter Key working for submit
-
 	Refactor client
 		ClientID File we will add a ID and Name
 			If file doesn't exist, create it
 			Remove use of UUID
+		Maintain a list of people you chat with
 
 	Decentralized Authentication
 	Encryption Peer2Peer
@@ -116,13 +113,9 @@ func run(ctx context.Context, log *logger.Logger) error {
 	// -------------------------------------------------------------------------
 	// Cap ID
 
-	if !strings.HasSuffix(cfg.NATS.IDFilePath, "/") {
-		cfg.NATS.IDFilePath += "/"
-	}
+	fileName := filepath.Join(cfg.NATS.IDFilePath, "cap.id")
 
-	fileName := cfg.NATS.IDFilePath + "cap.id"
-
-	if _, err = os.Stat(fileName); err != nil {
+	if _, err := os.Stat(fileName); err != nil {
 		os.MkdirAll(cfg.NATS.IDFilePath, os.ModePerm)
 
 		f, err := os.Create(fileName)
