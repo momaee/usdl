@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Log func(name string, msg string)
+type UIScreenWrite func(name string, msg string)
 
 // =============================================================================
 
@@ -32,12 +32,14 @@ type Client struct {
 	id   string
 	url  string
 	conn *websocket.Conn
+	cfg  *Config
 }
 
-func NewClient(id string, url string) *Client {
+func NewClient(id string, url string, cfg *Config) *Client {
 	return &Client{
 		id:  id,
 		url: url,
+		cfg: cfg,
 	}
 }
 
@@ -49,7 +51,7 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Handshake(name string, log Log) error {
+func (c *Client) Handshake(name string, write UIScreenWrite) error {
 	conn, _, err := websocket.DefaultDialer.Dial(c.url, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -100,17 +102,22 @@ func (c *Client) Handshake(name string, log Log) error {
 		for {
 			_, msg, err = conn.ReadMessage()
 			if err != nil {
-				log("system", fmt.Sprintf("read: %s", err))
+				write("system", fmt.Sprintf("read: %s", err))
 				return
 			}
 
 			var outMsg outMessage
 			if err := json.Unmarshal(msg, &outMsg); err != nil {
-				log("system", fmt.Sprintf("unmarshal: %s", err))
+				write("system", fmt.Sprintf("unmarshal: %s", err))
 				return
 			}
 
-			log(outMsg.From.Name, outMsg.Msg)
+			user, err := c.cfg.LookupContact(outMsg.From.ID)
+			if err == nil {
+				outMsg.From.Name = user.Name
+			}
+
+			write(outMsg.From.Name, outMsg.Msg)
 		}
 	}()
 

@@ -28,16 +28,16 @@ func run() error {
 	id := cfg.User().ID
 	name := cfg.User().Name
 
-	client := app.NewClient(id, url)
+	client := app.NewClient(id, url, cfg)
 	defer client.Close()
 
 	app := app.New(client, cfg)
 
-	log := func(name string, msg string) {
+	uiScreenWrite := func(name string, msg string) {
 		app.WriteText(name, msg)
 	}
 
-	if err := client.Handshake(name, log); err != nil {
+	if err := client.Handshake(name, uiScreenWrite); err != nil {
 		return fmt.Errorf("handshake: %w", err)
 	}
 

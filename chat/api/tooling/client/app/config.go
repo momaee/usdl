@@ -18,7 +18,7 @@ type User struct {
 
 type Config struct {
 	user     User
-	contacts []User
+	contacts map[string]User
 	mu       sync.RWMutex
 	fileName string
 }
@@ -41,9 +41,9 @@ func NewConfig(filePath string) (*Config, error) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	contacts := make([]User, len(doc.Contacts))
-	for i, user := range doc.Contacts {
-		contacts[i] = User(user)
+	contacts := make(map[string]User, len(doc.Contacts))
+	for _, user := range doc.Contacts {
+		contacts[user.ID] = User(user)
 	}
 
 	cfg := Config{
@@ -69,7 +69,24 @@ func (c *Config) Contacts() []User {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.contacts
+	users := make([]User, 0, len(c.contacts))
+	for _, user := range c.contacts {
+		users = append(users, user)
+	}
+
+	return users
+}
+
+func (c *Config) LookupContact(id string) (User, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	u, exists := c.contacts[id]
+	if !exists {
+		return User{}, fmt.Errorf("contact not found")
+	}
+
+	return u, nil
 }
 
 func (c *Config) AddContact(user User) error {
