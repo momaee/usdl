@@ -162,7 +162,7 @@ func (a *App) WriteText(id string, msg string) {
 	default:
 		idx := a.list.GetCurrentItem()
 
-		name, currentID := a.list.GetItemText(idx)
+		_, currentID := a.list.GetItemText(idx)
 		if currentID == "" {
 			fmt.Fprintln(a.textView, "-----")
 			fmt.Fprintln(a.textView, "id not found: "+id)
@@ -176,9 +176,10 @@ func (a *App) WriteText(id string, msg string) {
 		}
 
 		for i := range a.list.GetItemCount() {
-			_, idStr := a.list.GetItemText(i)
+			name, idStr := a.list.GetItemText(i)
 			if id == idStr {
-				a.list.SetItemText(i, "* "+name, currentID)
+				a.list.SetItemText(i, "* "+name, idStr)
+				a.app.Draw()
 				return
 			}
 		}
