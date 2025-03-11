@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ardanlabs/usdl/chat/api/tooling/client/app"
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/app"
 )
 
 /*
