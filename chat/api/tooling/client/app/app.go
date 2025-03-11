@@ -16,23 +16,11 @@ type App struct {
 	textArea *tview.TextArea
 	button   *tview.Button
 	client   *Client
-	cfg      *Config
+	contacts *Contacts
 }
 
-func New(client *Client, cfg *Config) *App {
+func New(client *Client, contacts *Contacts) *App {
 	app := tview.NewApplication()
-
-	// -------------------------------------------------------------------------
-
-	list := tview.NewList()
-	list.SetBorder(true)
-	list.SetTitle("Users")
-
-	users := cfg.Contacts()
-	for i, user := range users {
-		shortcut := rune(i + 49)
-		list.AddItem(user.Name, user.ID, shortcut, nil)
-	}
 
 	// -------------------------------------------------------------------------
 
@@ -44,7 +32,37 @@ func New(client *Client, cfg *Config) *App {
 		})
 
 	textView.SetBorder(true)
-	textView.SetTitle(fmt.Sprintf("*** %s ***", cfg.User().ID))
+	textView.SetTitle(fmt.Sprintf("*** %s ***", contacts.My().ID))
+
+	// -------------------------------------------------------------------------
+
+	list := tview.NewList()
+	list.SetBorder(true)
+	list.SetTitle("Users")
+	list.SetChangedFunc(func(index int, name string, id string, shortcut rune) {
+		textView.Clear()
+
+		user, err := contacts.LookupContact(id)
+		if err != nil {
+			textView.ScrollToEnd()
+			fmt.Fprintln(textView, "-----")
+			fmt.Fprintln(textView, err.Error())
+			return
+		}
+
+		for i, msg := range user.Messages {
+			fmt.Fprintln(textView, msg)
+			if i < len(user.Messages)-1 {
+				fmt.Fprintln(textView, "-----")
+			}
+		}
+	})
+
+	users := contacts.Contacts()
+	for i, user := range users {
+		shortcut := rune(i + 49)
+		list.AddItem(user.Name, user.ID, shortcut, nil)
+	}
 
 	// -------------------------------------------------------------------------
 
@@ -94,7 +112,7 @@ func New(client *Client, cfg *Config) *App {
 		textArea: textArea,
 		button:   button,
 		client:   client,
-		cfg:      cfg,
+		contacts: contacts,
 	}
 
 	button.SetSelectedFunc(a.ButtonHandler)
@@ -143,10 +161,20 @@ func (a *App) ButtonHandler() {
 	a.WriteText("You", msg)
 }
 
-func (a *App) WriteText(name string, msg string) {
+func (a *App) WriteText(id string, msg string) {
 	a.textView.ScrollToEnd()
-	fmt.Fprintln(a.textView, "-----")
-	fmt.Fprintln(a.textView, name+": "+msg)
+
+	name, foundID := a.list.GetItemText(a.list.GetCurrentItem())
+	if foundID == "" {
+		fmt.Fprintln(a.textView, "-----")
+		fmt.Fprintln(a.textView, "id not found: "+id)
+		return
+	}
+
+	if id == foundID {
+		fmt.Fprintln(a.textView, "-----")
+		fmt.Fprintln(a.textView, name+": "+msg)
+	}
 }
 
 func (a *App) UpdateContact(id string, name string) {

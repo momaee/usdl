@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type UIScreenWrite func(name string, msg string)
+type UIScreenWrite func(id string, msg string)
 type UIUpdateContact func(id string, name string)
 
 // =============================================================================
@@ -30,17 +30,17 @@ type outMessage struct {
 // =============================================================================
 
 type Client struct {
-	id   string
-	url  string
-	conn *websocket.Conn
-	cfg  *Config
+	id       string
+	url      string
+	conn     *websocket.Conn
+	contacts *Contacts
 }
 
-func NewClient(id string, url string, cfg *Config) *Client {
+func NewClient(id string, url string, contacts *Contacts) *Client {
 	return &Client{
-		id:  id,
-		url: url,
-		cfg: cfg,
+		id:       id,
+		url:      url,
+		contacts: contacts,
 	}
 }
 
@@ -113,10 +113,10 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 				return
 			}
 
-			user, err := c.cfg.LookupContact(outMsg.From.ID)
+			user, err := c.contacts.LookupContact(outMsg.From.ID)
 			switch {
 			case err != nil:
-				if err := c.cfg.AddContact(outMsg.From.ID, outMsg.From.Name); err != nil {
+				if err := c.contacts.AddContact(outMsg.From.ID, outMsg.From.Name); err != nil {
 					uiWrite("system", fmt.Sprintf("add contact: %s", err))
 					return
 				}
@@ -127,7 +127,12 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 				outMsg.From.Name = user.Name
 			}
 
-			uiWrite(outMsg.From.Name, outMsg.Msg)
+			if err := c.contacts.AddMessage(outMsg.From.ID, outMsg.Msg); err != nil {
+				uiWrite("system", fmt.Sprintf("add message: %s", err))
+				return
+			}
+
+			uiWrite(outMsg.From.ID, outMsg.Msg)
 		}
 	}()
 

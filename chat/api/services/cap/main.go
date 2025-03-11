@@ -32,8 +32,10 @@ import (
 	Decentralized Authentication
 	Encryption Peer2Peer
 		Sharing the public key
-	Transient Stream
+	Private Temporary Stream
 		Send File
+	AI agent mode
+		Ollama model server
 	Group Chat
 */
 

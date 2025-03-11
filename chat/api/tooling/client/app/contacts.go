@@ -12,18 +12,19 @@ import (
 const configFileName = "config.json"
 
 type User struct {
-	ID   string
-	Name string
+	ID       string
+	Name     string
+	Messages []string
 }
 
-type Config struct {
-	user     User
+type Contacts struct {
+	me       User
 	contacts map[string]User
 	mu       sync.RWMutex
 	fileName string
 }
 
-func NewConfig(filePath string) (*Config, error) {
+func NewContacts(filePath string) (*Contacts, error) {
 	fileName := filepath.Join(filePath, configFileName)
 
 	var doc document
@@ -43,11 +44,14 @@ func NewConfig(filePath string) (*Config, error) {
 
 	contacts := make(map[string]User, len(doc.Contacts))
 	for _, user := range doc.Contacts {
-		contacts[user.ID] = User(user)
+		contacts[user.ID] = User{
+			ID:   user.ID,
+			Name: user.Name,
+		}
 	}
 
-	cfg := Config{
-		user: User{
+	cfg := Contacts{
+		me: User{
 			ID:   doc.User.ID,
 			Name: doc.User.Name,
 		},
@@ -58,14 +62,14 @@ func NewConfig(filePath string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) User() User {
+func (c *Contacts) My() User {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.user
+	return c.me
 }
 
-func (c *Config) Contacts() []User {
+func (c *Contacts) Contacts() []User {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -77,7 +81,7 @@ func (c *Config) Contacts() []User {
 	return users
 }
 
-func (c *Config) LookupContact(id string) (User, error) {
+func (c *Contacts) LookupContact(id string) (User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -89,16 +93,34 @@ func (c *Config) LookupContact(id string) (User, error) {
 	return u, nil
 }
 
-func (c *Config) AddContact(id string, name string) error {
+func (c *Contacts) AddMessage(id string, message string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	u, exists := c.contacts[id]
+	if !exists {
+		return fmt.Errorf("contact not found")
+	}
+
+	u.Messages = append(u.Messages, message)
+
+	c.contacts[id] = u
+
+	return nil
+}
+
+func (c *Contacts) AddContact(id string, name string) error {
 	doc, err := readConfig(c.fileName)
 	if err != nil {
 		return fmt.Errorf("config read: %w", err)
 	}
 
-	doc.Contacts = append(doc.Contacts, docUser(User{
+	du := docUser{
 		ID:   id,
 		Name: name,
-	}))
+	}
+
+	doc.Contacts = append(doc.Contacts, du)
 
 	writeConfig(c.fileName, doc)
 
