@@ -135,17 +135,6 @@ func (a *App) Run() error {
 	return a.app.SetRoot(a.flex, true).EnableMouse(true).Run()
 }
 
-func (a *App) FindName(id string) string {
-	for i := range a.list.GetItemCount() {
-		name, toIDStr := a.list.GetItemText(i)
-		if id == toIDStr {
-			return name
-		}
-	}
-
-	return ""
-}
-
 func (a *App) ButtonHandler() {
 	_, to := a.list.GetItemText(a.list.GetCurrentItem())
 
@@ -186,7 +175,13 @@ func (a *App) WriteText(id string, msg string) {
 			return
 		}
 
-		a.list.SetItemText(idx, "* "+name, currentID)
+		for i := range a.list.GetItemCount() {
+			_, idStr := a.list.GetItemText(i)
+			if id == idStr {
+				a.list.SetItemText(i, "* "+name, currentID)
+				return
+			}
+		}
 	}
 }
 
