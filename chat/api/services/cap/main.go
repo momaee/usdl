@@ -24,11 +24,6 @@ import (
 )
 
 /*
-	Refactor client
-		Keep separate from the chat history
-		Show marker for new message
-		MAYBE: Save chat history
-
 	Decentralized Authentication
 	Encryption Peer2Peer
 		Sharing the public key
@@ -37,6 +32,10 @@ import (
 	AI agent mode
 		Ollama model server
 	Group Chat
+
+	Refactor client
+		Date/Time stamps on messages
+		Clear history button
 */
 
 var build = "develop"
