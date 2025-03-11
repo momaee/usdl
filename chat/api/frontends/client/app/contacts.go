@@ -27,6 +27,8 @@ type Contacts struct {
 }
 
 func NewContacts(filePath string) (*Contacts, error) {
+	os.MkdirAll(filepath.Join(filePath, "contacts"), os.ModePerm)
+
 	fileName := filepath.Join(filePath, configFileName)
 
 	var doc document
@@ -179,6 +181,7 @@ func (c *Contacts) writeMessage(id string, msg string) error {
 	_, err := os.Stat(fileName)
 	switch {
 	case err != nil:
+
 		f, err = os.Create(fileName)
 		if err != nil {
 			return fmt.Errorf("message file create: %w", err)
