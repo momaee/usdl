@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -18,6 +19,7 @@ type User struct {
 }
 
 type Contacts struct {
+	filePath string
 	me       User
 	contacts map[string]User
 	mu       sync.RWMutex
@@ -51,6 +53,7 @@ func NewContacts(filePath string) (*Contacts, error) {
 	}
 
 	cfg := Contacts{
+		filePath: filePath,
 		me: User{
 			ID:   doc.User.ID,
 			Name: doc.User.Name,
@@ -93,22 +96,6 @@ func (c *Contacts) LookupContact(id string) (User, error) {
 	return u, nil
 }
 
-func (c *Contacts) AddMessage(id string, msg string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	u, exists := c.contacts[id]
-	if !exists {
-		return fmt.Errorf("contact not found")
-	}
-
-	u.Messages = append(u.Messages, msg)
-
-	c.contacts[id] = u
-
-	return nil
-}
-
 func (c *Contacts) AddContact(id string, name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -131,6 +118,84 @@ func (c *Contacts) AddContact(id string, name string) error {
 	}
 
 	doc.Contacts = append(doc.Contacts, du)
+
+	return nil
+}
+
+func (c *Contacts) AddMessage(id string, msg string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	u, exists := c.contacts[id]
+	if !exists {
+		return fmt.Errorf("contact not found")
+	}
+
+	u.Messages = append(u.Messages, msg)
+	c.contacts[id] = u
+
+	if err := c.writeMessage(id, msg); err != nil {
+		return fmt.Errorf("write message: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Contacts) ReadMessages(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	u, exists := c.contacts[id]
+	if !exists {
+		return fmt.Errorf("contact not found")
+	}
+
+	if len(u.Messages) > 0 {
+		return nil
+	}
+
+	fileName := filepath.Join(c.filePath, "contacts", id+".msg")
+
+	f, err := os.Open(fileName)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		s := scanner.Text()
+		u.Messages = append(u.Messages, s)
+	}
+
+	return nil
+}
+
+func (c *Contacts) writeMessage(id string, msg string) error {
+	var f *os.File
+
+	fileName := filepath.Join(c.filePath, "contacts", id+".msg")
+
+	_, err := os.Stat(fileName)
+	switch {
+	case err != nil:
+		f, err = os.Create(fileName)
+		if err != nil {
+			return fmt.Errorf("message file create: %w", err)
+		}
+
+	default:
+		f, err = os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("message file open: %w", err)
+		}
+	}
+
+	defer f.Close()
+
+	if _, err := f.WriteString(msg + "\n"); err != nil {
+		return fmt.Errorf("message file write: %w", err)
+	}
 
 	return nil
 }

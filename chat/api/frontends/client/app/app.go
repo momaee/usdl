@@ -42,6 +42,12 @@ func New(client *Client, contacts *Contacts) *App {
 	list.SetChangedFunc(func(idx int, name string, id string, shortcut rune) {
 		textView.Clear()
 
+		if err := contacts.ReadMessages(id); err != nil {
+			textView.ScrollToEnd()
+			fmt.Fprintln(textView, "-----")
+			fmt.Fprintln(textView, err.Error())
+		}
+
 		user, err := contacts.LookupContact(id)
 		if err != nil {
 			textView.ScrollToEnd()
