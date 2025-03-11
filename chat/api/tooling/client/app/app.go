@@ -39,7 +39,7 @@ func New(client *Client, contacts *Contacts) *App {
 	list := tview.NewList()
 	list.SetBorder(true)
 	list.SetTitle("Users")
-	list.SetChangedFunc(func(index int, name string, id string, shortcut rune) {
+	list.SetChangedFunc(func(idx int, name string, id string, shortcut rune) {
 		textView.Clear()
 
 		user, err := contacts.LookupContact(id)
@@ -56,6 +56,8 @@ func New(client *Client, contacts *Contacts) *App {
 				fmt.Fprintln(textView, "-----")
 			}
 		}
+
+		list.SetItemText(idx, user.Name, user.ID)
 	})
 
 	users := contacts.Contacts()
@@ -156,6 +158,8 @@ func (a *App) ButtonHandler() {
 		a.WriteText("system", fmt.Sprintf("Error sending message: %s", err))
 		return
 	}
+
+	a.textArea.SetText("", false)
 }
 
 func (a *App) WriteText(id string, msg string) {
@@ -167,7 +171,9 @@ func (a *App) WriteText(id string, msg string) {
 		fmt.Fprintln(a.textView, msg)
 
 	default:
-		_, currentID := a.list.GetItemText(a.list.GetCurrentItem())
+		idx := a.list.GetCurrentItem()
+
+		name, currentID := a.list.GetItemText(idx)
 		if currentID == "" {
 			fmt.Fprintln(a.textView, "-----")
 			fmt.Fprintln(a.textView, "id not found: "+id)
@@ -177,7 +183,10 @@ func (a *App) WriteText(id string, msg string) {
 		if id == currentID {
 			fmt.Fprintln(a.textView, "-----")
 			fmt.Fprintln(a.textView, msg)
+			return
 		}
+
+		a.list.SetItemText(idx, "* "+name, currentID)
 	}
 }
 

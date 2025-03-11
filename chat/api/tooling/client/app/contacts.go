@@ -110,6 +110,9 @@ func (c *Contacts) AddMessage(id string, msg string) error {
 }
 
 func (c *Contacts) AddContact(id string, name string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	doc, err := readConfig(c.fileName)
 	if err != nil {
 		return fmt.Errorf("config read: %w", err)
@@ -120,9 +123,14 @@ func (c *Contacts) AddContact(id string, name string) error {
 		Name: name,
 	}
 
-	doc.Contacts = append(doc.Contacts, du)
-
 	writeConfig(c.fileName, doc)
+
+	c.contacts[id] = User{
+		ID:   id,
+		Name: name,
+	}
+
+	doc.Contacts = append(doc.Contacts, du)
 
 	return nil
 }
