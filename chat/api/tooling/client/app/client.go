@@ -32,8 +32,9 @@ type outMessage struct {
 type Client struct {
 	id       string
 	url      string
-	conn     *websocket.Conn
 	contacts *Contacts
+	conn     *websocket.Conn
+	uiWrite  UIScreenWrite
 }
 
 func NewClient(id string, url string, contacts *Contacts) *Client {
@@ -59,6 +60,7 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 	}
 
 	c.conn = conn
+	c.uiWrite = uiWrite
 
 	// -------------------------------------------------------------------------
 
@@ -127,12 +129,14 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 				outMsg.From.Name = user.Name
 			}
 
-			if err := c.contacts.AddMessage(outMsg.From.ID, outMsg.Msg); err != nil {
+			msg := formatMessage(user.Name, outMsg.Msg)
+
+			if err := c.contacts.AddMessage(outMsg.From.ID, msg); err != nil {
 				uiWrite("system", fmt.Sprintf("add message: %s", err))
 				return
 			}
 
-			uiWrite(outMsg.From.ID, outMsg.Msg)
+			uiWrite(outMsg.From.ID, msg)
 		}
 	}()
 
@@ -157,6 +161,14 @@ func (c *Client) Send(to string, msg string) error {
 	if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
+
+	msg = formatMessage("You", msg)
+
+	if err := c.contacts.AddMessage(to, msg); err != nil {
+		return fmt.Errorf("add message: %w", err)
+	}
+
+	c.uiWrite(to, msg)
 
 	return nil
 }

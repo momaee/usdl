@@ -156,24 +156,28 @@ func (a *App) ButtonHandler() {
 		a.WriteText("system", fmt.Sprintf("Error sending message: %s", err))
 		return
 	}
-
-	a.textArea.SetText("", false)
-	a.WriteText("You", msg)
 }
 
 func (a *App) WriteText(id string, msg string) {
 	a.textView.ScrollToEnd()
 
-	name, foundID := a.list.GetItemText(a.list.GetCurrentItem())
-	if foundID == "" {
+	switch id {
+	case "system":
 		fmt.Fprintln(a.textView, "-----")
-		fmt.Fprintln(a.textView, "id not found: "+id)
-		return
-	}
+		fmt.Fprintln(a.textView, msg)
 
-	if id == foundID {
-		fmt.Fprintln(a.textView, "-----")
-		fmt.Fprintln(a.textView, name+": "+msg)
+	default:
+		_, currentID := a.list.GetItemText(a.list.GetCurrentItem())
+		if currentID == "" {
+			fmt.Fprintln(a.textView, "-----")
+			fmt.Fprintln(a.textView, "id not found: "+id)
+			return
+		}
+
+		if id == currentID {
+			fmt.Fprintln(a.textView, "-----")
+			fmt.Fprintln(a.textView, msg)
+		}
 	}
 }
 

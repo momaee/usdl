@@ -93,7 +93,7 @@ func (c *Contacts) LookupContact(id string) (User, error) {
 	return u, nil
 }
 
-func (c *Contacts) AddMessage(id string, message string) error {
+func (c *Contacts) AddMessage(id string, msg string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -102,7 +102,7 @@ func (c *Contacts) AddMessage(id string, message string) error {
 		return fmt.Errorf("contact not found")
 	}
 
-	u.Messages = append(u.Messages, message)
+	u.Messages = append(u.Messages, msg)
 
 	c.contacts[id] = u
 
