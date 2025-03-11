@@ -170,6 +170,8 @@ func (c *Contacts) ReadMessages(id string) error {
 		u.Messages = append(u.Messages, s)
 	}
 
+	c.contacts[id] = u
+
 	return nil
 }
 

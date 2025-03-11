@@ -57,8 +57,6 @@ func run() error {
 		return fmt.Errorf("handshake: %w", err)
 	}
 
-	a.WriteText("system", "CONNECTED")
-
 	if err := a.Run(); err != nil {
 		return fmt.Errorf("run: %w", err)
 	}
