@@ -24,18 +24,21 @@ import (
 )
 
 /*
-	Decentralized Authentication
+	Decentralized Identification
+		- Have the hack program for identity
+		- Implmenent the ID in client/cap
+		- Local Account DB
+			- Track nonce values
 	Encryption Peer2Peer
-		Sharing the public key
+		- Sharing the public key
 	Private Temporary Stream
-		Send File
+		- Send File
 	AI agent mode
-		Ollama model server
+		- Ollama model server
 	Group Chat
-
 	Refactor client
-		Date/Time stamps on messages
-		Clear history button
+		- Date/Time stamps on messages
+		- Clear history button
 */
 
 var build = "develop"
