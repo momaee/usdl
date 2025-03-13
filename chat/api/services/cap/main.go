@@ -81,7 +81,7 @@ func run(ctx context.Context, log *logger.Logger) error {
 		NATS struct {
 			Host       string `conf:"default:demo.nats.io"`
 			Subject    string `conf:"default:ardanlabs-cap"`
-			IDFilePath string `conf:"default:chat/zarf"`
+			IDFilePath string `conf:"default:chat/zarf/cap"`
 		}
 	}{
 		Version: conf.Version{
