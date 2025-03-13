@@ -26,6 +26,7 @@ import (
 /*
 	Decentralized Identification
 		- Have the hack program for identity
+		- USE ETHEREUM ID and STAMP
 		- Implmenent the ID in client/cap
 		- Local Account DB
 			- Track nonce values
