@@ -271,7 +271,12 @@ func createConfig(fileName string, id common.Address) (document, error) {
 			ID:   id,
 			Name: "Anonymous",
 		},
-		Contacts: []docUser{},
+		Contacts: []docUser{
+			{
+				ID:   common.Address{},
+				Name: "Sample Contact",
+			},
+		},
 	}
 
 	jsonDoc, err := json.MarshalIndent(doc, "", "    ")
