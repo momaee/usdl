@@ -12,7 +12,9 @@ import (
 
 	"github.com/ardanlabs/usdl/chat/app/sdk/errs"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
+	"github.com/ardanlabs/usdl/chat/foundation/signature"
 	"github.com/ardanlabs/usdl/chat/foundation/web"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
@@ -28,11 +30,11 @@ var (
 // Users defines the set of behavior for user management.
 type Users interface {
 	Add(ctx context.Context, usr User) error
-	UpdateLastPing(ctx context.Context, userID string) error
-	UpdateLastPong(ctx context.Context, userID string) (User, error)
-	Remove(ctx context.Context, userID string)
-	Connections() map[string]Connection
-	Retrieve(ctx context.Context, userID string) (User, error)
+	UpdateLastPing(ctx context.Context, userID common.Address) error
+	UpdateLastPong(ctx context.Context, userID common.Address) (User, error)
+	Remove(ctx context.Context, userID common.Address)
+	Connections() map[common.Address]Connection
+	Retrieve(ctx context.Context, userID common.Address) (User, error)
 }
 
 // Chat represents a chat support.
@@ -158,13 +160,34 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			continue
 		}
 
-		var inMsg inMessage
+		var inMsg incomingMessage
 		if err := json.Unmarshal(msg, &inMsg); err != nil {
 			c.log.Info(ctx, "loc-unmarshal", "ERROR", err)
 			continue
 		}
 
 		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
+
+		dataThatWasSign := struct {
+			ToID  common.Address
+			Msg   string
+			Nonce uint64
+		}{
+			ToID:  inMsg.ToID,
+			Msg:   inMsg.Msg,
+			Nonce: inMsg.Nonce,
+		}
+
+		id, err := signature.FromAddress(dataThatWasSign, inMsg.V, inMsg.R, inMsg.S)
+		if err != nil {
+			c.log.Info(ctx, "loc-fromAddress", "ERROR", err)
+			continue
+		}
+
+		if id != from.ID.Hex() {
+			c.log.Info(ctx, "loc-signature check", "status", "signature does not match")
+			continue
+		}
 
 		to, err := c.users.Retrieve(ctx, inMsg.ToID)
 		if err != nil {
@@ -237,6 +260,27 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 
 		c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
 
+		dataThatWasSign := struct {
+			ToID  common.Address
+			Msg   string
+			Nonce uint64
+		}{
+			ToID:  busMsg.ToID,
+			Msg:   busMsg.Msg,
+			Nonce: busMsg.Nonce,
+		}
+
+		id, err := signature.FromAddress(dataThatWasSign, busMsg.V, busMsg.R, busMsg.S)
+		if err != nil {
+			c.log.Info(ctx, "bus-fromAddress", "ERROR", err)
+			return
+		}
+
+		if id != busMsg.FromID.Hex() {
+			c.log.Info(ctx, "bus-signature check", "status", "signature does not match")
+			return
+		}
+
 		to, err := c.users.Retrieve(ctx, busMsg.ToID)
 		if err != nil {
 			switch {
@@ -303,7 +347,7 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 }
 
 func (c *Chat) sendMessage(from User, to User, msg string) error {
-	m := outMessage{
+	m := outgoingMessage{
 		From: User{
 			ID:   from.ID,
 			Name: from.Name,
@@ -318,13 +362,12 @@ func (c *Chat) sendMessage(from User, to User, msg string) error {
 	return nil
 }
 
-func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg inMessage) error {
+func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg incomingMessage) error {
 	busMsg := busMessage{
-		CapID:    c.capID,
-		FromID:   from.ID,
-		FromName: from.Name,
-		ToID:     inMsg.ToID,
-		Msg:      inMsg.Msg,
+		CapID:           c.capID,
+		FromID:          from.ID,
+		FromName:        from.Name,
+		incomingMessage: inMsg,
 	}
 
 	d, err := json.Marshal(busMsg)
@@ -340,7 +383,7 @@ func (c *Chat) sendMessageBus(ctx context.Context, from User, inMsg inMessage) e
 	return nil
 }
 
-func (c *Chat) pong(id string) func(appData string) error {
+func (c *Chat) pong(id common.Address) func(appData string) error {
 	f := func(appData string) error {
 		ctx := web.SetTraceID(context.Background(), uuid.New())
 

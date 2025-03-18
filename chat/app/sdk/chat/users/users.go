@@ -7,12 +7,13 @@ import (
 
 	"github.com/ardanlabs/usdl/chat/app/sdk/chat"
 	"github.com/ardanlabs/usdl/chat/foundation/logger"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Users provides user storage management.
 type Users struct {
 	log     *logger.Logger
-	users   map[string]chat.User
+	users   map[common.Address]chat.User
 	muUsers sync.RWMutex
 }
 
@@ -20,7 +21,7 @@ type Users struct {
 func New(log *logger.Logger) *Users {
 	u := Users{
 		log:   log,
-		users: make(map[string]chat.User),
+		users: make(map[common.Address]chat.User),
 	}
 
 	return &u
@@ -43,7 +44,7 @@ func (u *Users) Add(ctx context.Context, usr chat.User) error {
 }
 
 // UpdateLastPing updates a user value's ping date/time.
-func (u *Users) UpdateLastPing(ctx context.Context, userID string) error {
+func (u *Users) UpdateLastPing(ctx context.Context, userID common.Address) error {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -61,7 +62,7 @@ func (u *Users) UpdateLastPing(ctx context.Context, userID string) error {
 }
 
 // UpdateLastPong updates a user value's pong date/time.
-func (u *Users) UpdateLastPong(ctx context.Context, userID string) (chat.User, error) {
+func (u *Users) UpdateLastPong(ctx context.Context, userID common.Address) (chat.User, error) {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -79,7 +80,7 @@ func (u *Users) UpdateLastPong(ctx context.Context, userID string) (chat.User, e
 }
 
 // Remove removes a user from the storage.
-func (u *Users) Remove(ctx context.Context, userID string) {
+func (u *Users) Remove(ctx context.Context, userID common.Address) {
 	u.muUsers.Lock()
 	defer u.muUsers.Unlock()
 
@@ -96,11 +97,11 @@ func (u *Users) Remove(ctx context.Context, userID string) {
 
 // Connections returns all the know users with their connections. A connection
 // that is not valid shouldn't be used.
-func (u *Users) Connections() map[string]chat.Connection {
+func (u *Users) Connections() map[common.Address]chat.Connection {
 	u.muUsers.RLock()
 	defer u.muUsers.RUnlock()
 
-	m := make(map[string]chat.Connection)
+	m := make(map[common.Address]chat.Connection)
 	for id, usr := range u.users {
 		m[id] = chat.Connection{
 			Conn:     usr.Conn,
@@ -113,7 +114,7 @@ func (u *Users) Connections() map[string]chat.Connection {
 }
 
 // Retrieve retrieves a user from the storage.
-func (u *Users) Retrieve(ctx context.Context, userID string) (chat.User, error) {
+func (u *Users) Retrieve(ctx context.Context, userID common.Address) (chat.User, error) {
 	u.muUsers.RLock()
 	defer u.muUsers.RUnlock()
 

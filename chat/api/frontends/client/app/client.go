@@ -17,13 +17,12 @@ type UIUpdateContact func(id string, name string)
 // =============================================================================
 
 type outgoingMessage struct {
-	FromID common.Address `json:"fromID"`
-	ToID   common.Address `json:"toID"`
-	Msg    string         `json:"msg"`
-	Nonce  uint64         `json:"nonce"`
-	V      *big.Int       `json:"v"`
-	R      *big.Int       `json:"r"`
-	S      *big.Int       `json:"s"`
+	ToID  common.Address `json:"toID"`
+	Msg   string         `json:"msg"`
+	Nonce uint64         `json:"nonce"`
+	V     *big.Int       `json:"v"`
+	R     *big.Int       `json:"r"`
+	S     *big.Int       `json:"s"`
 }
 
 type user struct {
@@ -159,19 +158,28 @@ func (c *Client) Send(to common.Address, msg string) error {
 		return fmt.Errorf("no connection")
 	}
 
-	v, r, s, err := signature.Sign(msg, c.privateKey)
+	dataToSign := struct {
+		ToID  common.Address
+		Msg   string
+		Nonce uint64
+	}{
+		ToID:  to,
+		Msg:   msg,
+		Nonce: 1,
+	}
+
+	v, r, s, err := signature.Sign(dataToSign, c.privateKey)
 	if err != nil {
 		return fmt.Errorf("signing: %w", err)
 	}
 
 	outMsg := outgoingMessage{
-		FromID: c.id,
-		ToID:   to,
-		Msg:    msg,
-		Nonce:  1,
-		V:      v,
-		R:      r,
-		S:      s,
+		ToID:  to,
+		Msg:   msg,
+		Nonce: 1,
+		V:     v,
+		R:     r,
+		S:     s,
 	}
 
 	data, err := json.Marshal(outMsg)

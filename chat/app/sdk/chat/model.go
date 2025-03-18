@@ -1,15 +1,17 @@
 package chat
 
 import (
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 // User represents a user in the chat system.
 type User struct {
-	ID       string          `json:"id"`
+	ID       common.Address  `json:"id"`
 	Name     string          `json:"name"`
 	LastPing time.Time       `json:"lastPing"`
 	LastPong time.Time       `json:"lastPong"`
@@ -23,20 +25,23 @@ type Connection struct {
 	LastPong time.Time
 }
 
-type inMessage struct {
-	ToID string `json:"toID"`
-	Msg  string `json:"msg"`
+type incomingMessage struct {
+	ToID  common.Address `json:"toID"`
+	Msg   string         `json:"msg"`
+	Nonce uint64         `json:"nonce"`
+	V     *big.Int       `json:"v"`
+	R     *big.Int       `json:"r"`
+	S     *big.Int       `json:"s"`
 }
 
-type outMessage struct {
+type outgoingMessage struct {
 	From User   `json:"from"`
 	Msg  string `json:"msg"`
 }
 
 type busMessage struct {
-	CapID    uuid.UUID `json:"capID"`
-	FromID   string    `json:"fromID"`
-	FromName string    `json:"fromName"`
-	ToID     string    `json:"toID"`
-	Msg      string    `json:"msg"`
+	CapID    uuid.UUID      `json:"capID"`
+	FromID   common.Address `json:"fromID"`
+	FromName string         `json:"fromName"`
+	incomingMessage
 }
