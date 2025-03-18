@@ -20,7 +20,7 @@ func main() {
 }
 
 func run() error {
-	id, err := app.NewID(configFilePath)
+	id, privateKey, err := app.NewID(configFilePath)
 	if err != nil {
 		return fmt.Errorf("id: %w", err)
 	}
@@ -30,7 +30,7 @@ func run() error {
 		return fmt.Errorf("config: %w", err)
 	}
 
-	client := app.NewClient(id, url, cfg)
+	client := app.NewClient(id, privateKey, url, cfg)
 	defer client.Close()
 
 	a := app.New(client, cfg)
