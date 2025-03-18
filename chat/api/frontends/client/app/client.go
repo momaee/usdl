@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
 )
 
@@ -13,13 +14,13 @@ type UIUpdateContact func(id string, name string)
 // =============================================================================
 
 type inMessage struct {
-	ToID string `json:"toID"`
-	Msg  string `json:"msg"`
+	ToID common.Address `json:"toID"`
+	Msg  string         `json:"msg"`
 }
 
 type user struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   common.Address `json:"id"`
+	Name string         `json:"name"`
 }
 
 type outMessage struct {
@@ -30,14 +31,14 @@ type outMessage struct {
 // =============================================================================
 
 type Client struct {
-	id       string
+	id       common.Address
 	url      string
 	contacts *Contacts
 	conn     *websocket.Conn
 	uiWrite  UIScreenWrite
 }
 
-func NewClient(id string, url string, contacts *Contacts) *Client {
+func NewClient(id common.Address, url string, contacts *Contacts) *Client {
 	return &Client{
 		id:       id,
 		url:      url,
@@ -76,7 +77,7 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 	// -------------------------------------------------------------------------
 
 	user := struct {
-		ID   string
+		ID   common.Address
 		Name string
 	}{
 		ID:   c.id,
@@ -123,7 +124,7 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 					return
 				}
 
-				uiUpdateContact(outMsg.From.ID, outMsg.From.Name)
+				uiUpdateContact(outMsg.From.ID.Hex(), outMsg.From.Name)
 
 			default:
 				outMsg.From.Name = user.Name
@@ -136,14 +137,14 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 				return
 			}
 
-			uiWrite(outMsg.From.ID, msg)
+			uiWrite(outMsg.From.ID.Hex(), msg)
 		}
 	}()
 
 	return nil
 }
 
-func (c *Client) Send(to string, msg string) error {
+func (c *Client) Send(to common.Address, msg string) error {
 	if c.conn == nil {
 		return fmt.Errorf("no connection")
 	}
@@ -168,7 +169,7 @@ func (c *Client) Send(to string, msg string) error {
 		return fmt.Errorf("add message: %w", err)
 	}
 
-	c.uiWrite(to, msg)
+	c.uiWrite(to.Hex(), msg)
 
 	return nil
 }

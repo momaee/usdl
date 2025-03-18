@@ -4,16 +4,17 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const configFileName = "config.json"
 
 type User struct {
-	ID       string
+	ID       common.Address
 	Name     string
 	Messages []string
 }
@@ -21,12 +22,12 @@ type User struct {
 type Contacts struct {
 	filePath string
 	me       User
-	contacts map[string]User
+	contacts map[common.Address]User
 	mu       sync.RWMutex
 	fileName string
 }
 
-func NewContacts(filePath string) (*Contacts, error) {
+func NewContacts(filePath string, id common.Address) (*Contacts, error) {
 	os.MkdirAll(filepath.Join(filePath, "contacts"), os.ModePerm)
 
 	fileName := filepath.Join(filePath, configFileName)
@@ -36,17 +37,20 @@ func NewContacts(filePath string) (*Contacts, error) {
 	_, err := os.Stat(fileName)
 	switch {
 	case err != nil:
-		doc, err = createConfig(fileName)
+		doc, err = createConfig(fileName, id)
 
 	default:
 		doc, err = readConfig(fileName)
+		if doc.User.ID != id {
+			return nil, fmt.Errorf("id mismatch")
+		}
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	contacts := make(map[string]User, len(doc.Contacts))
+	contacts := make(map[common.Address]User, len(doc.Contacts))
 	for _, user := range doc.Contacts {
 		contacts[user.ID] = User{
 			ID:   user.ID,
@@ -86,7 +90,7 @@ func (c *Contacts) Contacts() []User {
 	return users
 }
 
-func (c *Contacts) LookupContact(id string) (User, error) {
+func (c *Contacts) LookupContact(id common.Address) (User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -98,7 +102,7 @@ func (c *Contacts) LookupContact(id string) (User, error) {
 	return u, nil
 }
 
-func (c *Contacts) AddContact(id string, name string) error {
+func (c *Contacts) AddContact(id common.Address, name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -124,7 +128,7 @@ func (c *Contacts) AddContact(id string, name string) error {
 	return nil
 }
 
-func (c *Contacts) AddMessage(id string, msg string) error {
+func (c *Contacts) AddMessage(id common.Address, msg string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -143,7 +147,7 @@ func (c *Contacts) AddMessage(id string, msg string) error {
 	return nil
 }
 
-func (c *Contacts) ReadMessages(id string) error {
+func (c *Contacts) ReadMessages(id common.Address) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -156,7 +160,7 @@ func (c *Contacts) ReadMessages(id string) error {
 		return nil
 	}
 
-	fileName := filepath.Join(c.filePath, "contacts", id+".msg")
+	fileName := filepath.Join(c.filePath, "contacts", id.Hex()+".msg")
 
 	f, err := os.Open(fileName)
 	if err != nil {
@@ -175,10 +179,10 @@ func (c *Contacts) ReadMessages(id string) error {
 	return nil
 }
 
-func (c *Contacts) writeMessage(id string, msg string) error {
+func (c *Contacts) writeMessage(id common.Address, msg string) error {
 	var f *os.File
 
-	fileName := filepath.Join(c.filePath, "contacts", id+".msg")
+	fileName := filepath.Join(c.filePath, "contacts", id.Hex()+".msg")
 
 	_, err := os.Stat(fileName)
 	switch {
@@ -208,8 +212,8 @@ func (c *Contacts) writeMessage(id string, msg string) error {
 // =============================================================================
 
 type docUser struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   common.Address `json:"id"`
+	Name string         `json:"name"`
 }
 
 type document struct {
@@ -251,7 +255,7 @@ func writeConfig(fileName string, doc document) error {
 	return nil
 }
 
-func createConfig(fileName string) (document, error) {
+func createConfig(fileName string, id common.Address) (document, error) {
 	filePath := filepath.Dir(fileName)
 
 	os.MkdirAll(filePath, os.ModePerm)
@@ -264,7 +268,7 @@ func createConfig(fileName string) (document, error) {
 
 	doc := document{
 		User: docUser{
-			ID:   fmt.Sprintf("%d", rand.IntN(99999)),
+			ID:   id,
 			Name: "Anonymous",
 		},
 		Contacts: []docUser{},

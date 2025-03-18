@@ -3,7 +3,7 @@ package signature_test
 import (
 	"testing"
 
-	"github.com/ardanlabs/blockchain/foundation/blockchain/signature"
+	"github.com/ardanlabs/usdl/chat/foundation/signature"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/ardanlabs/usdl/chat/foundation/signature"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -35,7 +36,9 @@ func run() error {
 
 	fmt.Println("*** CLIENT SIDE ***")
 	id := crypto.PubkeyToAddress(privateKey.PublicKey)
-	fmt.Printf("ID: %s\n", id.String())
+	fmt.Printf("ID S: %s\n", id.String())
+	fmt.Printf("ID H: %s\n", id.Hex())
+	fmt.Printf("ID 2: %s\n", common.HexToAddress(id.Hex()))
 
 	// -------------------------------------------------------------------------
 	// Sign Data
