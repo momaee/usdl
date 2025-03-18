@@ -28,6 +28,7 @@ import (
 		- Track nonce values in config
 			- Client side verification
 	Private Temporary Stream
+		- Generate stream name based on config data
 		- Send Public Key
 	Encryption Peer2Peer
 		- Sharing the public key
