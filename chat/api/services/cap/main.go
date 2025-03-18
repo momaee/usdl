@@ -25,15 +25,14 @@ import (
 
 /*
 	Decentralized Identification
-		- Have the hack program for identity
-		- USE ETHEREUM ID and STAMP
-		- Implmenent the ID in client/cap
-		- Local Account DB
-			- Track nonce values
+		- Track nonce values in config
+			- Client side verification
+	Private Temporary Stream
+		- Send Public Key
 	Encryption Peer2Peer
 		- Sharing the public key
-	Private Temporary Stream
-		- Send File
+	Using Private Temporary Stream
+		- Send Encrypted Message
 	AI agent mode
 		- Ollama model server
 	Group Chat
