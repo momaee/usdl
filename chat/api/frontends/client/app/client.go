@@ -128,7 +128,8 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 			user, err := c.contacts.LookupContact(inMsg.From.ID)
 			switch {
 			case err != nil:
-				if err := c.contacts.AddContact(inMsg.From.ID, inMsg.From.Name); err != nil {
+				user, err = c.contacts.AddContact(inMsg.From.ID, inMsg.From.Name)
+				if err != nil {
 					uiWrite("system", fmt.Sprintf("add contact: %s", err))
 					return
 				}

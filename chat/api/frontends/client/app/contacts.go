@@ -102,21 +102,19 @@ func (c *Contacts) LookupContact(id common.Address) (User, error) {
 	return u, nil
 }
 
-func (c *Contacts) AddContact(id common.Address, name string) error {
+func (c *Contacts) AddContact(id common.Address, name string) (User, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	doc, err := readConfig(c.fileName)
 	if err != nil {
-		return fmt.Errorf("config read: %w", err)
+		return User{}, fmt.Errorf("config read: %w", err)
 	}
 
 	du := docUser{
 		ID:   id,
 		Name: name,
 	}
-
-	writeConfig(c.fileName, doc)
 
 	c.contacts[id] = User{
 		ID:   id,
@@ -125,7 +123,14 @@ func (c *Contacts) AddContact(id common.Address, name string) error {
 
 	doc.Contacts = append(doc.Contacts, du)
 
-	return nil
+	writeConfig(c.fileName, doc)
+
+	u := User{
+		ID:   id,
+		Name: name,
+	}
+
+	return u, nil
 }
 
 func (c *Contacts) AddMessage(id common.Address, msg string) error {
