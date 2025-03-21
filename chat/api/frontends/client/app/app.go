@@ -4,6 +4,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -17,10 +18,10 @@ type App struct {
 	textArea *tview.TextArea
 	button   *tview.Button
 	client   *Client
-	contacts *Contacts
+	db       *dbfile.DB
 }
 
-func New(client *Client, contacts *Contacts) *App {
+func New(client *Client, db *dbfile.DB) *App {
 	app := tview.NewApplication()
 
 	// -------------------------------------------------------------------------
@@ -33,7 +34,7 @@ func New(client *Client, contacts *Contacts) *App {
 		})
 
 	textView.SetBorder(true)
-	textView.SetTitle(fmt.Sprintf("*** %s ***", contacts.My().ID))
+	textView.SetTitle(fmt.Sprintf("*** %s ***", db.MyAccount().ID))
 
 	// -------------------------------------------------------------------------
 
@@ -45,13 +46,7 @@ func New(client *Client, contacts *Contacts) *App {
 
 		addrID := common.HexToAddress(id)
 
-		if err := contacts.ReadMessages(addrID); err != nil {
-			textView.ScrollToEnd()
-			fmt.Fprintln(textView, "-----")
-			fmt.Fprintln(textView, err.Error())
-		}
-
-		user, err := contacts.LookupContact(addrID)
+		user, err := db.QueryContactByID(addrID)
 		if err != nil {
 			textView.ScrollToEnd()
 			fmt.Fprintln(textView, "-----")
@@ -69,7 +64,7 @@ func New(client *Client, contacts *Contacts) *App {
 		list.SetItemText(idx, user.Name, user.ID.Hex())
 	})
 
-	users := contacts.Contacts()
+	users := db.Contacts()
 	for i, user := range users {
 		shortcut := rune(i + 49)
 		list.AddItem(user.Name, user.ID.Hex(), shortcut, nil)
@@ -123,7 +118,7 @@ func New(client *Client, contacts *Contacts) *App {
 		textArea: textArea,
 		button:   button,
 		client:   client,
-		contacts: contacts,
+		db:       db,
 	}
 
 	button.SetSelectedFunc(a.ButtonHandler)

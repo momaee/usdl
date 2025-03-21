@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/ardanlabs/usdl/chat/api/frontends/client/app"
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
 )
 
 const (
@@ -25,17 +26,17 @@ func run() error {
 		return fmt.Errorf("id: %w", err)
 	}
 
-	cfg, err := app.NewContacts(configFilePath, id)
+	db, err := dbfile.NewDB(configFilePath, id)
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
 
-	client := app.NewClient(id, privateKey, url, cfg)
+	client := app.NewClient(id, privateKey, url, db)
 	defer client.Close()
 
-	a := app.New(client, cfg)
+	a := app.New(client, db)
 
-	if err := client.Handshake(cfg.My().Name, a.WriteText, a.UpdateContact); err != nil {
+	if err := client.Handshake(db.MyAccount().Name, a.WriteText, a.UpdateContact); err != nil {
 		return fmt.Errorf("handshake: %w", err)
 	}
 

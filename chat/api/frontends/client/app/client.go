@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
 	"github.com/ardanlabs/usdl/chat/foundation/signature"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
@@ -41,17 +42,17 @@ type Client struct {
 	id         common.Address
 	privateKey *ecdsa.PrivateKey
 	url        string
-	contacts   *Contacts
+	db         *dbfile.DB
 	conn       *websocket.Conn
 	uiWrite    UIScreenWrite
 }
 
-func NewClient(id common.Address, privateKey *ecdsa.PrivateKey, url string, contacts *Contacts) *Client {
+func NewClient(id common.Address, privateKey *ecdsa.PrivateKey, url string, db *dbfile.DB) *Client {
 	return &Client{
 		id:         id,
 		privateKey: privateKey,
 		url:        url,
-		contacts:   contacts,
+		db:         db,
 	}
 }
 
@@ -125,10 +126,10 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 				return
 			}
 
-			user, err := c.contacts.LookupContact(inMsg.From.ID)
+			user, err := c.db.QueryContactByID(inMsg.From.ID)
 			switch {
 			case err != nil:
-				user, err = c.contacts.AddContact(inMsg.From.ID, inMsg.From.Name)
+				user, err = c.db.InsertContact(inMsg.From.ID, inMsg.From.Name)
 				if err != nil {
 					uiWrite("system", fmt.Sprintf("add contact: %s", err))
 					return
@@ -142,7 +143,7 @@ func (c *Client) Handshake(name string, uiWrite UIScreenWrite, uiUpdateContact U
 
 			msg := formatMessage(user.Name, inMsg.Msg)
 
-			if err := c.contacts.AddMessage(inMsg.From.ID, msg); err != nil {
+			if err := c.db.InsertMessage(inMsg.From.ID, msg); err != nil {
 				uiWrite("system", fmt.Sprintf("add message: %s", err))
 				return
 			}
@@ -194,7 +195,7 @@ func (c *Client) Send(to common.Address, msg string) error {
 
 	msg = formatMessage("You", msg)
 
-	if err := c.contacts.AddMessage(to, msg); err != nil {
+	if err := c.db.InsertMessage(to, msg); err != nil {
 		return fmt.Errorf("add message: %w", err)
 	}
 
