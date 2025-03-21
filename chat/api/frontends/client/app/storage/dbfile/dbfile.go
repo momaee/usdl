@@ -10,7 +10,7 @@ import (
 
 type DB struct {
 	myAccount app.User
-	cache     map[common.Address]app.User
+	contacts  map[common.Address]app.User
 	mu        sync.RWMutex
 }
 
@@ -20,9 +20,9 @@ func NewDB(filePath string, myAccountID common.Address) (*DB, error) {
 		return nil, fmt.Errorf("newDB: %w", err)
 	}
 
-	cache := make(map[common.Address]app.User, len(df.Contacts))
+	contacts := make(map[common.Address]app.User, len(df.Contacts))
 	for _, user := range df.Contacts {
-		cache[user.ID] = app.User{
+		contacts[user.ID] = app.User{
 			ID:   user.ID,
 			Name: user.Name,
 		}
@@ -33,7 +33,7 @@ func NewDB(filePath string, myAccountID common.Address) (*DB, error) {
 			ID:   df.MyAccount.ID,
 			Name: df.MyAccount.Name,
 		},
-		cache: cache,
+		contacts: contacts,
 	}
 
 	return &db, nil
@@ -50,8 +50,8 @@ func (c *DB) Contacts() []app.User {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	users := make([]app.User, 0, len(c.cache))
-	for _, user := range c.cache {
+	users := make([]app.User, 0, len(c.contacts))
+	for _, user := range c.contacts {
 		users = append(users, user)
 	}
 
@@ -62,7 +62,7 @@ func (db *DB) QueryContactByID(id common.Address) (app.User, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	u, exists := db.cache[id]
+	u, exists := db.contacts[id]
 	if !exists {
 		return app.User{}, fmt.Errorf("contact not found")
 	}
@@ -74,7 +74,7 @@ func (db *DB) QueryContactByID(id common.Address) (app.User, error) {
 		}
 
 		u.Messages = msgs
-		db.cache[id] = u
+		db.contacts[id] = u
 	}
 
 	return u, nil
@@ -87,13 +87,13 @@ func (db *DB) InsertContact(id common.Address, name string) (app.User, error) {
 	// -------------------------------------------------------------------------
 	// Update in the in-memory cache of contacts.
 
-	db.cache[id] = app.User{
+	db.contacts[id] = app.User{
 		ID:   id,
 		Name: name,
 	}
 
 	// -------------------------------------------------------------------------
-	// Update the data.json file.
+	// Update the local file.
 
 	df, err := readDBFromDisk()
 	if err != nil {
@@ -124,13 +124,13 @@ func (db *DB) InsertMessage(id common.Address, msg string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	u, exists := db.cache[id]
+	u, exists := db.contacts[id]
 	if !exists {
 		return fmt.Errorf("contact not found")
 	}
 
 	u.Messages = append(u.Messages, msg)
-	db.cache[id] = u
+	db.contacts[id] = u
 
 	if err := flushMsgToDisk(id, msg); err != nil {
 		return fmt.Errorf("write message: %w", err)
