@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
 	"github.com/ardanlabs/usdl/chat/foundation/signature"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
@@ -38,16 +37,22 @@ type incomingMessage struct {
 
 // =============================================================================
 
+type ClientStorage interface {
+	QueryContactByID(id common.Address) (User, error)
+	InsertContact(id common.Address, name string) (User, error)
+	InsertMessage(id common.Address, msg string) error
+}
+
 type Client struct {
 	id         common.Address
 	privateKey *ecdsa.PrivateKey
 	url        string
-	db         *dbfile.DB
+	db         ClientStorage
 	conn       *websocket.Conn
 	uiWrite    UIScreenWrite
 }
 
-func NewClient(id common.Address, privateKey *ecdsa.PrivateKey, url string, db *dbfile.DB) *Client {
+func NewClient(id common.Address, privateKey *ecdsa.PrivateKey, url string, db ClientStorage) *Client {
 	return &Client{
 		id:         id,
 		privateKey: privateKey,

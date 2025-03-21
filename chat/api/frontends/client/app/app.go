@@ -4,11 +4,16 @@ package app
 import (
 	"fmt"
 
-	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+type AppStorage interface {
+	QueryContactByID(id common.Address) (User, error)
+	MyAccount() User
+	Contacts() []User
+}
 
 type App struct {
 	app      *tview.Application
@@ -18,10 +23,10 @@ type App struct {
 	textArea *tview.TextArea
 	button   *tview.Button
 	client   *Client
-	db       *dbfile.DB
+	db       AppStorage
 }
 
-func New(client *Client, db *dbfile.DB) *App {
+func New(client *Client, db AppStorage) *App {
 	app := tview.NewApplication()
 
 	// -------------------------------------------------------------------------
