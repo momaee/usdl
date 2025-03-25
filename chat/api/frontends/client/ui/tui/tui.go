@@ -51,6 +51,10 @@ func New(myAccountID common.Address, contacts []app.User) *TUI {
 	list.SetChangedFunc(func(idx int, name string, id string, shortcut rune) {
 		textView.Clear()
 
+		if ui.app == nil {
+			return
+		}
+
 		addrID := common.HexToAddress(id)
 
 		user, err := ui.app.QueryContactHandler(addrID)
