@@ -143,6 +143,15 @@ func New(myAccountID common.Address, contacts []app.User) *TUI {
 
 func (ui *TUI) SetApp(app App) {
 	ui.app = app
+
+	// We need to get the change function to execute, so remove the last
+	// items and add it back.
+
+	lastItem := ui.list.GetItemCount() - 1
+	main, secondary := ui.list.GetItemText(lastItem)
+	ui.list.RemoveItem(lastItem)
+	shortcut := rune(ui.list.GetItemCount() + 49)
+	ui.list.AddItem(main, secondary, shortcut, nil)
 }
 
 func (ui *TUI) Run() error {
