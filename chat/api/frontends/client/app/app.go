@@ -2,200 +2,229 @@
 package app
 
 import (
+	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
+	"math/big"
 
+	"github.com/ardanlabs/usdl/chat/foundation/signature"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
+	"github.com/gorilla/websocket"
 )
 
-type AppStorage interface {
-	QueryContactByID(id common.Address) (User, error)
-	MyAccount() User
-	Contacts() []User
+type User struct {
+	ID       common.Address
+	Name     string
+	Messages []string
 }
+
+type Storage interface {
+	QueryContactByID(id common.Address) (User, error)
+	InsertContact(id common.Address, name string) (User, error)
+	InsertMessage(id common.Address, msg string) error
+}
+
+type UI interface {
+	Run() error
+	WriteText(id string, msg string)
+	UpdateContact(id string, name string)
+}
+
+// =============================================================================
+
+type outgoingMessage struct {
+	ToID  common.Address `json:"toID"`
+	Msg   string         `json:"msg"`
+	Nonce uint64         `json:"nonce"`
+	V     *big.Int       `json:"v"`
+	R     *big.Int       `json:"r"`
+	S     *big.Int       `json:"s"`
+}
+
+type usr struct {
+	ID   common.Address `json:"id"`
+	Name string         `json:"name"`
+}
+
+type incomingMessage struct {
+	From usr    `json:"from"`
+	Msg  string `json:"msg"`
+}
+
+// =============================================================================
 
 type App struct {
-	app      *tview.Application
-	flex     *tview.Flex
-	list     *tview.List
-	textView *tview.TextView
-	textArea *tview.TextArea
-	button   *tview.Button
-	client   *Client
-	db       AppStorage
+	db          Storage
+	ui          UI
+	myAccountID common.Address
+	privateKey  *ecdsa.PrivateKey
+	url         string
+	conn        *websocket.Conn
 }
 
-func New(client *Client, db AppStorage) *App {
-	app := tview.NewApplication()
+func NewApp(db Storage, ui UI, myAccountID common.Address, privateKey *ecdsa.PrivateKey, url string) *App {
+	return &App{
+		db:          db,
+		ui:          ui,
+		myAccountID: myAccountID,
+		privateKey:  privateKey,
+		url:         url,
+	}
+}
+
+func (app *App) Close() error {
+	if app.conn == nil {
+		return nil
+	}
+
+	return app.conn.Close()
+}
+
+func (app *App) Run() error {
+	return app.ui.Run()
+}
+
+func (app *App) Handshake(name string) error {
+	conn, _, err := websocket.DefaultDialer.Dial(app.url, nil)
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+
+	app.conn = conn
 
 	// -------------------------------------------------------------------------
 
-	textView := tview.NewTextView().
-		SetTextAlign(tview.AlignLeft).
-		SetWordWrap(true).
-		SetChangedFunc(func() {
-			app.Draw()
-		})
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		return fmt.Errorf("read: %w", err)
+	}
 
-	textView.SetBorder(true)
-	textView.SetTitle(fmt.Sprintf("*** %s ***", db.MyAccount().ID))
-
-	// -------------------------------------------------------------------------
-
-	list := tview.NewList()
-	list.SetBorder(true)
-	list.SetTitle("Users")
-	list.SetChangedFunc(func(idx int, name string, id string, shortcut rune) {
-		textView.Clear()
-
-		addrID := common.HexToAddress(id)
-
-		user, err := db.QueryContactByID(addrID)
-		if err != nil {
-			textView.ScrollToEnd()
-			fmt.Fprintln(textView, "-----")
-			fmt.Fprintln(textView, err.Error())
-			return
-		}
-
-		for i, msg := range user.Messages {
-			fmt.Fprintln(textView, msg)
-			if i < len(user.Messages)-1 {
-				fmt.Fprintln(textView, "-----")
-			}
-		}
-
-		list.SetItemText(idx, user.Name, user.ID.Hex())
-	})
-
-	users := db.Contacts()
-	for i, user := range users {
-		shortcut := rune(i + 49)
-		list.AddItem(user.Name, user.ID.Hex(), shortcut, nil)
+	if string(msg) != "HELLO" {
+		return fmt.Errorf("unexpected message: %s", msg)
 	}
 
 	// -------------------------------------------------------------------------
 
-	button := tview.NewButton("SUBMIT")
-	button.SetStyle(tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGreen).Bold(true))
-	button.SetActivatedStyle(tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorGreen).Bold(true))
-	button.SetBorder(true)
-	button.SetBorderColor(tcell.ColorGreen)
+	user := struct {
+		ID   common.Address
+		Name string
+	}{
+		ID:   app.myAccountID,
+		Name: name,
+	}
+
+	data, err := json.Marshal(user)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
 
 	// -------------------------------------------------------------------------
 
-	textArea := tview.NewTextArea()
-	textArea.SetWrap(false)
-	textArea.SetPlaceholder("Enter message here...")
-	textArea.SetBorder(true)
-	textArea.SetBorderPadding(0, 0, 1, 0)
+	_, msg, err = conn.ReadMessage()
+	if err != nil {
+		return fmt.Errorf("read: %w", err)
+	}
 
 	// -------------------------------------------------------------------------
 
-	flex := tview.NewFlex().
-		AddItem(list, 20, 1, false).
-		AddItem(tview.NewFlex().
-			SetDirection(tview.FlexRow).
-			AddItem(textView, 0, 5, false).
-			AddItem(tview.NewFlex().
-				SetDirection(tview.FlexColumn).
-				AddItem(textArea, 0, 90, false).
-				AddItem(button, 0, 10, false),
-				0, 1, false),
-			0, 1, false)
-
-	flex.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
-		case tcell.KeyEscape, tcell.KeyCtrlQ:
-			app.Stop()
-			return nil
-		}
-
-		return event
-	})
-
-	a := App{
-		app:      app,
-		flex:     flex,
-		list:     list,
-		textView: textView,
-		textArea: textArea,
-		button:   button,
-		client:   client,
-		db:       db,
-	}
-
-	button.SetSelectedFunc(a.ButtonHandler)
-
-	textArea.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
-		case tcell.KeyEnter:
-			a.ButtonHandler()
-			return nil
-		}
-		return event
-	})
-
-	return &a
-}
-
-func (a *App) Run() error {
-	return a.app.SetRoot(a.flex, true).EnableMouse(true).Run()
-}
-
-func (a *App) ButtonHandler() {
-	_, to := a.list.GetItemText(a.list.GetCurrentItem())
-
-	msg := a.textArea.GetText()
-	if msg == "" {
-		return
-	}
-
-	if err := a.client.Send(common.HexToAddress(to), msg); err != nil {
-		a.WriteText("system", fmt.Sprintf("Error sending message: %s", err))
-		return
-	}
-
-	a.textArea.SetText("", false)
-}
-
-func (a *App) WriteText(id string, msg string) {
-	a.textView.ScrollToEnd()
-
-	switch id {
-	case "system":
-		fmt.Fprintln(a.textView, "-----")
-		fmt.Fprintln(a.textView, msg)
-
-	default:
-		idx := a.list.GetCurrentItem()
-
-		_, currentID := a.list.GetItemText(idx)
-		if currentID == "" {
-			fmt.Fprintln(a.textView, "-----")
-			fmt.Fprintln(a.textView, "id not found: "+id)
-			return
-		}
-
-		if id == currentID {
-			fmt.Fprintln(a.textView, "-----")
-			fmt.Fprintln(a.textView, msg)
-			return
-		}
-
-		for i := range a.list.GetItemCount() {
-			name, idStr := a.list.GetItemText(i)
-			if id == idStr {
-				a.list.SetItemText(i, "* "+name, idStr)
-				a.app.Draw()
+	go func() {
+		for {
+			_, msg, err = conn.ReadMessage()
+			if err != nil {
+				app.ui.WriteText("system", fmt.Sprintf("read: %s", err))
 				return
 			}
+
+			var inMsg incomingMessage
+			if err := json.Unmarshal(msg, &inMsg); err != nil {
+				app.ui.WriteText("system", fmt.Sprintf("unmarshal: %s", err))
+				return
+			}
+
+			user, err := app.db.QueryContactByID(inMsg.From.ID)
+			switch {
+			case err != nil:
+				user, err = app.db.InsertContact(inMsg.From.ID, inMsg.From.Name)
+				if err != nil {
+					app.ui.WriteText("system", fmt.Sprintf("add contact: %s", err))
+					return
+				}
+
+				app.ui.UpdateContact(inMsg.From.ID.Hex(), inMsg.From.Name)
+
+			default:
+				inMsg.From.Name = user.Name
+			}
+
+			msg := formatMessage(user.Name, inMsg.Msg)
+
+			if err := app.db.InsertMessage(inMsg.From.ID, msg); err != nil {
+				app.ui.WriteText("system", fmt.Sprintf("add message: %s", err))
+				return
+			}
+
+			app.ui.WriteText(inMsg.From.ID.Hex(), msg)
 		}
-	}
+	}()
+
+	return nil
 }
 
-func (a *App) UpdateContact(id string, name string) {
-	shortcut := rune(a.list.GetItemCount() + 49)
-	a.list.AddItem(name, id, shortcut, nil)
+// =============================================================================
+
+func (app *App) SendMessageHandler(to common.Address, msg string) error {
+	if app.conn == nil {
+		return fmt.Errorf("no connection")
+	}
+
+	dataToSign := struct {
+		ToID  common.Address
+		Msg   string
+		Nonce uint64
+	}{
+		ToID:  to,
+		Msg:   msg,
+		Nonce: 1,
+	}
+
+	v, r, s, err := signature.Sign(dataToSign, app.privateKey)
+	if err != nil {
+		return fmt.Errorf("signing: %w", err)
+	}
+
+	outMsg := outgoingMessage{
+		ToID:  to,
+		Msg:   msg,
+		Nonce: 1,
+		V:     v,
+		R:     r,
+		S:     s,
+	}
+
+	data, err := json.Marshal(outMsg)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+
+	if err := app.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+
+	msg = formatMessage("You", msg)
+
+	if err := app.db.InsertMessage(to, msg); err != nil {
+		return fmt.Errorf("add message: %w", err)
+	}
+
+	app.ui.WriteText(to.Hex(), msg)
+
+	return nil
+}
+
+func (app *App) QueryContactHandler(id common.Address) (User, error) {
+	return app.db.QueryContactByID(id)
 }

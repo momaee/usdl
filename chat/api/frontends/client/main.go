@@ -5,7 +5,8 @@ import (
 	"os"
 
 	"github.com/ardanlabs/usdl/chat/api/frontends/client/app"
-	"github.com/ardanlabs/usdl/chat/api/frontends/client/app/storage/dbfile"
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/storage/dbfile"
+	"github.com/ardanlabs/usdl/chat/api/frontends/client/ui/tui"
 )
 
 const (
@@ -21,26 +22,34 @@ func main() {
 }
 
 func run() error {
-	id, privateKey, err := app.NewID(configFilePath)
+	myAccountID, privateKey, err := app.NewID(configFilePath)
 	if err != nil {
 		return fmt.Errorf("id: %w", err)
 	}
 
-	db, err := dbfile.NewDB(configFilePath, id)
+	db, err := dbfile.NewDB(configFilePath, myAccountID)
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
 
-	client := app.NewClient(id, privateKey, url, db)
-	defer client.Close()
+	// -------------------------------------------------------------------------
 
-	a := app.New(client, db)
+	ui := tui.New(myAccountID, db.Contacts())
 
-	if err := client.Handshake(db.MyAccount().Name, a.WriteText, a.UpdateContact); err != nil {
+	// -------------------------------------------------------------------------
+
+	app := app.NewApp(db, ui, myAccountID, privateKey, url)
+	defer app.Close()
+
+	ui.SetApp(app)
+
+	// -------------------------------------------------------------------------
+
+	if err := app.Handshake(db.MyAccount().Name); err != nil {
 		return fmt.Errorf("handshake: %w", err)
 	}
 
-	if err := a.Run(); err != nil {
+	if err := app.Run(); err != nil {
 		return fmt.Errorf("run: %w", err)
 	}
 
