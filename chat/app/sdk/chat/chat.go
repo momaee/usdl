@@ -166,7 +166,7 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			continue
 		}
 
-		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
+		c.log.Info(ctx, "LOC: msg recv", "fromNonce", inMsg.FromNonce, "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
 
 		dataThatWasSign := struct {
 			ToID      common.Address
@@ -177,8 +177,6 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			Msg:       inMsg.Msg,
 			FromNonce: inMsg.FromNonce,
 		}
-
-		c.log.Info(ctx, "**********>", "data", dataThatWasSign)
 
 		id, err := signature.FromAddress(dataThatWasSign, inMsg.V, inMsg.R, inMsg.S)
 		if err != nil {
@@ -250,6 +248,8 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 	ctx := web.SetTraceID(context.Background(), uuid.New())
 
 	f := func(msg jetstream.Msg) {
+		defer msg.Ack()
+
 		var busMsg busMessage
 		if err := json.Unmarshal(msg.Data(), &busMsg); err != nil {
 			c.log.Info(ctx, "bus-unmarshal", "ERROR", err)
@@ -260,7 +260,7 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 			return
 		}
 
-		c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
+		c.log.Info(ctx, "BUS: msg recv", "fromNonce", busMsg.FromNonce, "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
 
 		dataThatWasSign := struct {
 			ToID      common.Address
@@ -269,7 +269,7 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 		}{
 			ToID:      busMsg.ToID,
 			Msg:       busMsg.Msg,
-			FromNonce: busMsg.incomingMessage.FromNonce,
+			FromNonce: busMsg.FromNonce,
 		}
 
 		id, err := signature.FromAddress(dataThatWasSign, busMsg.V, busMsg.R, busMsg.S)
@@ -304,8 +304,6 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 		if err := c.sendMessage(from, to, busMsg.incomingMessage.FromNonce, busMsg.Msg); err != nil {
 			c.log.Info(ctx, "bus-send", "ERROR", err)
 		}
-
-		msg.Ack()
 
 		c.log.Info(ctx, "BUS: msg sent over web socket", "from", busMsg.FromID, "to", busMsg.ToID)
 	}
