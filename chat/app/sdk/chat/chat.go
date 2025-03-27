@@ -260,7 +260,7 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 			return
 		}
 
-		c.log.Info(ctx, "BUS: msg recv", "fromNonce", busMsg.FromNonce, "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
+		c.log.Info(ctx, "BUS: msg recv", "fromNonce", busMsg.FromNonce, "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fromName", busMsg.FromName)
 
 		dataThatWasSign := struct {
 			ToID      common.Address

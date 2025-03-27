@@ -182,7 +182,7 @@ func (app *App) ReceiveCapMessage(conn *websocket.Conn) {
 
 		expNonce := user.LastNonce + 1
 		if inMsg.From.Nonce != expNonce {
-			app.ui.WriteText("system", fmt.Sprintf("invalid nonce: %d != %d", inMsg.From.Nonce, expNonce))
+			app.ui.WriteText("system", fmt.Sprintf("invalid nonce: possible security issue with contact: got: %d, exp: %d", inMsg.From.Nonce, expNonce))
 			return
 		}
 
@@ -227,8 +227,6 @@ func (app *App) SendMessageHandler(to common.Address, msg string) error {
 		Msg:       msg,
 		FromNonce: nonce,
 	}
-
-	app.ui.WriteText("system", fmt.Sprintf("%v", nonce))
 
 	v, r, s, err := signature.Sign(dataToSign, app.privateKey)
 	if err != nil {
