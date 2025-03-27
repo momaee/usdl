@@ -178,6 +178,8 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			FromNonce: inMsg.FromNonce,
 		}
 
+		c.log.Info(ctx, "**********>", "data", dataThatWasSign)
+
 		id, err := signature.FromAddress(dataThatWasSign, inMsg.V, inMsg.R, inMsg.S)
 		if err != nil {
 			c.log.Info(ctx, "loc-fromAddress", "ERROR", err)

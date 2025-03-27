@@ -227,6 +227,8 @@ func (app *App) SendMessageHandler(to common.Address, msg string) error {
 		FromNonce: nonce,
 	}
 
+	app.ui.WriteText("system", fmt.Sprintf("%v", nonce))
+
 	v, r, s, err := signature.Sign(dataToSign, app.privateKey)
 	if err != nil {
 		return fmt.Errorf("signing: %w", err)
