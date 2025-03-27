@@ -169,13 +169,13 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 		c.log.Info(ctx, "LOC: msg recv", "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
 
 		dataThatWasSign := struct {
-			ToID  common.Address
-			Msg   string
-			Nonce uint64
+			ToID      common.Address
+			Msg       string
+			FromNonce uint64
 		}{
-			ToID:  inMsg.ToID,
-			Msg:   inMsg.Msg,
-			Nonce: inMsg.Nonce,
+			ToID:      inMsg.ToID,
+			Msg:       inMsg.Msg,
+			FromNonce: inMsg.FromNonce,
 		}
 
 		id, err := signature.FromAddress(dataThatWasSign, inMsg.V, inMsg.R, inMsg.S)
@@ -205,7 +205,7 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			continue
 		}
 
-		if err := c.sendMessage(from, to, inMsg.Msg); err != nil {
+		if err := c.sendMessage(from, to, inMsg.FromNonce, inMsg.Msg); err != nil {
 			c.log.Info(ctx, "loc-send", "ERROR", err)
 		}
 
@@ -261,13 +261,13 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 		c.log.Info(ctx, "BUS: msg recv", "from", busMsg.FromID, "to", busMsg.ToID, "message", busMsg.Msg, "fn", busMsg.FromName)
 
 		dataThatWasSign := struct {
-			ToID  common.Address
-			Msg   string
-			Nonce uint64
+			ToID      common.Address
+			Msg       string
+			FromNonce uint64
 		}{
-			ToID:  busMsg.ToID,
-			Msg:   busMsg.Msg,
-			Nonce: busMsg.Nonce,
+			ToID:      busMsg.ToID,
+			Msg:       busMsg.Msg,
+			FromNonce: busMsg.incomingMessage.FromNonce,
 		}
 
 		id, err := signature.FromAddress(dataThatWasSign, busMsg.V, busMsg.R, busMsg.S)
@@ -299,7 +299,7 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 			Name: busMsg.FromName,
 		}
 
-		if err := c.sendMessage(from, to, busMsg.Msg); err != nil {
+		if err := c.sendMessage(from, to, busMsg.incomingMessage.FromNonce, busMsg.Msg); err != nil {
 			c.log.Info(ctx, "bus-send", "ERROR", err)
 		}
 
@@ -346,11 +346,12 @@ func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {
 	return resp.msg, nil
 }
 
-func (c *Chat) sendMessage(from User, to User, msg string) error {
+func (c *Chat) sendMessage(from User, to User, fromNonce uint64, msg string) error {
 	m := outgoingMessage{
-		From: User{
-			ID:   from.ID,
-			Name: from.Name,
+		From: outgoingUser{
+			ID:    from.ID,
+			Name:  from.Name,
+			Nonce: fromNonce,
 		},
 		Msg: msg,
 	}

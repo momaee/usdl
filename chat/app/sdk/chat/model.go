@@ -26,17 +26,23 @@ type Connection struct {
 }
 
 type incomingMessage struct {
-	ToID  common.Address `json:"toID"`
-	Msg   string         `json:"msg"`
+	ToID      common.Address `json:"toID"`
+	Msg       string         `json:"msg"`
+	FromNonce uint64         `json:"fromNonce"`
+	V         *big.Int       `json:"v"`
+	R         *big.Int       `json:"r"`
+	S         *big.Int       `json:"s"`
+}
+
+type outgoingUser struct {
+	ID    common.Address `json:"id"`
+	Name  string         `json:"name"`
 	Nonce uint64         `json:"nonce"`
-	V     *big.Int       `json:"v"`
-	R     *big.Int       `json:"r"`
-	S     *big.Int       `json:"s"`
 }
 
 type outgoingMessage struct {
-	From User   `json:"from"`
-	Msg  string `json:"msg"`
+	From outgoingUser `json:"from"`
+	Msg  string       `json:"msg"`
 }
 
 type busMessage struct {

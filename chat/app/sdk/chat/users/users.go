@@ -56,7 +56,7 @@ func (u *Users) UpdateLastPing(ctx context.Context, userID common.Address) error
 	usr.LastPing = time.Now()
 	u.users[usr.ID] = usr
 
-	u.log.Debug(ctx, "chat-upduser", "name", usr.Name, "id", usr.ID, "lastPing", usr.LastPing)
+	u.log.Debug(ctx, "chat-updping", "name", usr.Name, "id", usr.ID, "lastPing", usr.LastPing)
 
 	return nil
 }
@@ -74,7 +74,7 @@ func (u *Users) UpdateLastPong(ctx context.Context, userID common.Address) (chat
 	usr.LastPong = time.Now()
 	u.users[usr.ID] = usr
 
-	u.log.Debug(ctx, "chat-upduser", "name", usr.Name, "id", usr.ID, "lastPong", usr.LastPong)
+	u.log.Debug(ctx, "chat-updpong", "name", usr.Name, "id", usr.ID, "lastPong", usr.LastPong)
 
 	return usr, nil
 }
