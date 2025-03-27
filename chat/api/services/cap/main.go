@@ -24,12 +24,9 @@ import (
 )
 
 /*
-	Decentralized Identification
-		- Track nonce values in config
-			- Client side verification
+	DataStar Client (Thursday)
 	Private Temporary Stream
 		- Generate stream name based on config data
-		- Send Public Key
 	Encryption Peer2Peer
 		- Sharing the public key
 	Using Private Temporary Stream
