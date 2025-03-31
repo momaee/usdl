@@ -305,7 +305,7 @@ func (app *App) preprocessRecvMessage(inMsg incomingMessage) (incomingMessage, e
 
 	switch parts[0] {
 	case "key":
-		if err := app.db.UpdateContactKey(inMsg.From.ID, parts[1]); err != nil {
+		if err := app.db.UpdateContactKey(inMsg.From.ID, msg[5:]); err != nil {
 			return incomingMessage{}, fmt.Errorf("updating key: %w", err)
 		}
 		inMsg.Msg = "** updated contact's key **"
