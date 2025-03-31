@@ -335,7 +335,7 @@ func (app *App) preprocessSendMessage(msg string, usr User) (string, error) {
 	case "share":
 		switch parts[1] {
 		case "key":
-			if usr.Key == "" {
+			if app.id.PubKeyRSA == "" {
 				return "", fmt.Errorf("no key to share")
 			}
 
