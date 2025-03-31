@@ -299,7 +299,7 @@ func (app *App) preprocessRecvMessage(inMsg incomingMessage) (incomingMessage, e
 	}
 
 	parts := strings.Split(msg[1:], " ")
-	if len(parts) > 1 {
+	if len(parts) < 2 {
 		return incomingMessage{}, fmt.Errorf("invalid command format: parts: %d", len(parts))
 	}
 
