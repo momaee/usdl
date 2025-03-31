@@ -230,7 +230,7 @@ func (app *App) SendMessageHandler(to common.Address, msg string) error {
 
 	nonce := usr.AppLastNonce + 1
 
-	msg, err = app.preprocessSendMessage(msg, usr)
+	msg, err = app.preprocessSendMessage(msg)
 	if err != nil {
 		return fmt.Errorf("preprocess message: %w", err)
 	}
@@ -298,12 +298,9 @@ func (app *App) preprocessRecvMessage(inMsg incomingMessage) (incomingMessage, e
 		return inMsg, nil
 	}
 
-	msg = strings.TrimSpace(msg)
-	msg = strings.ToLower(msg)
-
 	parts := strings.Split(msg[1:], " ")
-	if len(parts) != 2 {
-		return incomingMessage{}, fmt.Errorf("invalid command format")
+	if len(parts) > 1 {
+		return incomingMessage{}, fmt.Errorf("invalid command format: parts: %d", len(parts))
 	}
 
 	switch parts[0] {
@@ -318,7 +315,7 @@ func (app *App) preprocessRecvMessage(inMsg incomingMessage) (incomingMessage, e
 	return incomingMessage{}, fmt.Errorf("unknown command")
 }
 
-func (app *App) preprocessSendMessage(msg string, usr User) (string, error) {
+func (app *App) preprocessSendMessage(msg string) (string, error) {
 	if msg[0] != '/' {
 		return msg, nil
 	}
