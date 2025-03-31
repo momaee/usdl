@@ -30,7 +30,7 @@ func (a *app) connect(ctx context.Context, r *http.Request) web.Encoder {
 	}
 	defer usr.Conn.Close()
 
-	a.chat.ListenSocket(ctx, usr)
+	a.chat.ListenClient(ctx, usr)
 
 	return web.NewNoResponse()
 }

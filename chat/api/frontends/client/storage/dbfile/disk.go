@@ -32,6 +32,7 @@ type dataFileUser struct {
 	Name         string         `json:"name"`
 	AppLastNonce uint64         `json:"app_last_nonce"`
 	LastNonce    uint64         `json:"last_nonce"`
+	Key          string         `json:"key,omitempty"`
 }
 
 type dataFile struct {

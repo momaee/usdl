@@ -1,14 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
-
-	"github.com/ardanlabs/usdl/chat/foundation/signature"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const filePath = "chat/zarf/client"
@@ -20,60 +22,64 @@ func main() {
 }
 
 func run() error {
-	fileName := filepath.Join(filePath, "key.ecdsa")
+	fileName := filepath.Join(filePath, "key.rsa")
 
 	if err := generatePrivateKey(fileName); err != nil {
 		return fmt.Errorf("generatePrivateKey: %w", err)
 	}
 
 	// -------------------------------------------------------------------------
-	// Public ID
 
-	privateKey, err := crypto.LoadECDSA(fileName)
+	file, err := os.Open(fileName)
 	if err != nil {
-		return fmt.Errorf("loadECDSA: %w", err)
+		return fmt.Errorf("opening key file: %w", err)
 	}
+	defer file.Close()
 
-	fmt.Println("*** CLIENT SIDE ***")
-	id := crypto.PubkeyToAddress(privateKey.PublicKey)
-	fmt.Printf("ID S: %s\n", id.String())
-	fmt.Printf("ID H: %s\n", id.Hex())
-	fmt.Printf("ID 2: %s\n", common.HexToAddress(id.Hex()))
-
-	// -------------------------------------------------------------------------
-	// Sign Data
-
-	data := struct {
-		FromID string `json:"fromID"`
-		ToID   string `json:"toID"`
-		Msg    string `json:"msg"`
-		Nonce  uint64 `json:"nonce"`
-	}{
-		FromID: id.String(),
-		ToID:   "20723",
-		Msg:    "Hello, Kevin!",
-		Nonce:  1,
-	}
-
-	v, r, s, err := signature.Sign(data, privateKey)
+	pemData, err := io.ReadAll(io.LimitReader(file, 1024*1024))
 	if err != nil {
-		return fmt.Errorf("sign: %w", err)
+		return fmt.Errorf("reading auth private key: %w", err)
 	}
 
-	fmt.Println("V:", v)
-	fmt.Println("R:", r)
-	fmt.Println("S:", s)
+	privatePEM := string(pemData)
+
+	block, _ := pem.Decode([]byte(privatePEM))
+	if block == nil {
+		return errors.New("invalid key: Key must be a PEM encoded PKCS1 or PKCS8 key")
+	}
+
+	var parsedKey any
+	parsedKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		parsedKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return err
+		}
+	}
+
+	pk, ok := parsedKey.(*rsa.PrivateKey)
+	if !ok {
+		return errors.New("key is not a valid RSA private key")
+	}
 
 	// -------------------------------------------------------------------------
 
-	id2, err := signature.FromAddress(data, v, r, s)
+	encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, &pk.PublicKey, []byte("Hi Kevin, this is a secret message!"))
 	if err != nil {
-		return fmt.Errorf("from address: %w", err)
+		return fmt.Errorf("encrypting message: %w", err)
 	}
 
-	fmt.Println("\n*** CAP SIDE ***")
-	fmt.Printf("ID : %s\n", id.String())
-	fmt.Printf("ID2: %s\n", id2)
+	fmt.Println(string(encryptedData))
+	fmt.Println("")
+
+	// -------------------------------------------------------------------------
+
+	decryptedData, err := rsa.DecryptPKCS1v15(nil, pk, encryptedData)
+	if err != nil {
+		return fmt.Errorf("decrypting message: %w", err)
+	}
+
+	fmt.Println(string(decryptedData))
 
 	return nil
 }
@@ -83,13 +89,24 @@ func generatePrivateKey(fileName string) error {
 		return nil
 	}
 
-	privateKey, err := crypto.GenerateKey()
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return fmt.Errorf("generateKey: %w", err)
+		return fmt.Errorf("generating key: %w", err)
 	}
 
-	if err := crypto.SaveECDSA(fileName, privateKey); err != nil {
-		return fmt.Errorf("saveECDSA: %w", err)
+	privateFile, err := os.Create(fileName)
+	if err != nil {
+		return fmt.Errorf("creating private file: %w", err)
+	}
+	defer privateFile.Close()
+
+	privateBlock := pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}
+
+	if err := pem.Encode(privateFile, &privateBlock); err != nil {
+		return fmt.Errorf("encoding to private file: %w", err)
 	}
 
 	return nil

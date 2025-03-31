@@ -149,8 +149,8 @@ func (c *Chat) Handshake(ctx context.Context, w http.ResponseWriter, r *http.Req
 	return usr, nil
 }
 
-// ListenSocket waits for messages from users.
-func (c *Chat) ListenSocket(ctx context.Context, from User) {
+// ListenClient waits for messages from users.
+func (c *Chat) ListenClient(ctx context.Context, from User) {
 	for {
 		msg, err := c.readMessage(ctx, from)
 		if err != nil {
@@ -166,7 +166,7 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 			continue
 		}
 
-		c.log.Info(ctx, "LOC: msg recv", "fromNonce", inMsg.FromNonce, "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
+		c.log.Info(ctx, "CLIENT: msg recv", "fromNonce", inMsg.FromNonce, "from", from.ID, "to", inMsg.ToID, "message", inMsg.Msg)
 
 		dataThatWasSign := struct {
 			ToID      common.Address
@@ -214,35 +214,6 @@ func (c *Chat) ListenSocket(ctx context.Context, from User) {
 }
 
 // =============================================================================
-
-func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
-	switch e := err.(type) {
-	case *websocket.CloseError:
-		c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
-		return true
-
-	case *net.OpError:
-		if !e.Temporary() {
-			c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
-			return true
-		}
-		return false
-
-	default:
-		if errors.Is(err, context.Canceled) {
-			c.log.Info(ctx, "chat-isCriticalError", "status", "client canceled")
-			return true
-		}
-
-		if errors.Is(err, nats.ErrConnectionClosed) {
-			c.log.Info(ctx, "chat-isCriticalError", "status", "nats connection closed")
-			return true
-		}
-
-		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
-		return false
-	}
-}
 
 func (c *Chat) listenBus() func(msg jetstream.Msg) {
 	ctx := web.SetTraceID(context.Background(), uuid.New())
@@ -309,6 +280,35 @@ func (c *Chat) listenBus() func(msg jetstream.Msg) {
 	}
 
 	return f
+}
+
+func (c *Chat) isCriticalError(ctx context.Context, err error) bool {
+	switch e := err.(type) {
+	case *websocket.CloseError:
+		c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
+		return true
+
+	case *net.OpError:
+		if !e.Temporary() {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "client disconnected")
+			return true
+		}
+		return false
+
+	default:
+		if errors.Is(err, context.Canceled) {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "client canceled")
+			return true
+		}
+
+		if errors.Is(err, nats.ErrConnectionClosed) {
+			c.log.Info(ctx, "chat-isCriticalError", "status", "nats connection closed")
+			return true
+		}
+
+		c.log.Info(ctx, "chat-isCriticalError", "ERROR", err, "TYPE", fmt.Sprintf("%T", err))
+		return false
+	}
 }
 
 func (c *Chat) readMessage(ctx context.Context, usr User) ([]byte, error) {

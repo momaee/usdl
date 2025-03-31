@@ -25,15 +25,16 @@ import (
 
 /*
 	DataStar Client (Thursday)
-	Private Temporary Stream
-		- Generate stream name based on config data
-	Encryption Peer2Peer
+	Encryption
 		- Sharing the public key
-	Using Private Temporary Stream
-		- Send Encrypted Message
+	Private Stream
+		- Read stream name from config else "general"
+	Datafile transfer
+		- Private stream
 	AI agent mode
 		- Ollama model server
 	Group Chat
+		- Allow users to create groups
 	Refactor client
 		- Date/Time stamps on messages
 		- Clear history button
