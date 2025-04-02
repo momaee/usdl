@@ -153,6 +153,10 @@ func (ui *TUI) SetApp(app App) {
 	// We need to get the change function to execute, so remove the last
 	// items and add it back.
 
+	if ui.list.GetItemCount() == 0 {
+		return
+	}
+
 	lastItem := ui.list.GetItemCount() - 1
 	main, secondary := ui.list.GetItemText(lastItem)
 	ui.list.RemoveItem(lastItem)
